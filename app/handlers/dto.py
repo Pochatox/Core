@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from app.config import AuthConfig
@@ -33,3 +35,7 @@ class UserDTO(BaseDTO):
     username: Username
     email: str
     is_active: bool
+    first_name: str
+    last_name: str
+    avatar: str
+    created_at: datetime
