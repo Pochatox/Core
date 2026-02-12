@@ -65,6 +65,29 @@ class BaseError(BaseModel):
     extra: dict = {}
 
 ###
+# miss-X: Error codes for missing required elements
+###
+
+
+class AuthorizationHeaderMissing(BaseError):
+    status_code: int = 401
+    detail: str = HTTPStatus(401).phrase
+    extra: dict = {
+        'error_code': 'miss-1',
+        'message': 'Authorization header missing'
+    }
+
+
+class RefreshTokenHeaderMissing(BaseError):
+    status_code: int = 401
+    detail: str = HTTPStatus(401).phrase
+    extra: dict = {
+        'error_code': 'miss-2',
+        'message': 'Refresh token missing in header'
+    }
+
+
+###
 # inv-X: Error codes for invalid inputs or tokens
 ###
 
@@ -102,6 +125,103 @@ class ChangePasswordTokenInvalid(BaseError):
     extra: dict = {
         'error_code': 'inv-4',
         'message': 'Change password token is invalid'
+    }
+
+###
+# uniq-X: Error codes for uniqueness violations
+###
+
+
+class UsernameNotUnique(BaseError):
+    status_code: int = 409
+    detail: str = HTTPStatus(409).phrase
+    extra: dict = {
+        'error_code': 'uniq-1',
+        'message': 'Username not unique'
+    }
+
+
+class EmailNotUnique(BaseError):
+    status_code: int = 409
+    detail: str = HTTPStatus(409).phrase
+    extra: dict = {
+        'error_code': 'uniq-2',
+        'message': 'Email not unique'
+    }
+
+
+###
+# exist-X: Error codes for non-existent entities
+###
+
+class EmailNonExists(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'exist-1',
+        'message': 'Email does not exist'
+    }
+
+
+class UserNotExists(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'exist-3',
+        'message': 'User not exists'
+    }
+
+###
+# exp-X: Error codes for expired tokens
+###
+
+
+class AccessTokenExpired(BaseError):
+    status_code: int = 401
+    detail: str = HTTPStatus(401).phrase
+    extra: dict = {
+        'error_code': 'exp-1',
+        'message': 'Access token expired'
+    }
+
+
+class RefreshTokenExpired(BaseError):
+    status_code: int = 401
+    detail: str = HTTPStatus(401).phrase
+    extra: dict = {
+        'error_code': 'exp-2',
+        'message': 'Refresh token expired'
+    }
+
+###
+# other-X: Error codes for other types of errors
+###
+
+
+class UserIsActive(BaseError):
+    status_code: int = 403
+    detail: str = HTTPStatus(403).phrase
+    extra: dict = {
+        'error_code': 'other-1',
+        'message': 'The user is already active'
+    }
+
+
+class InvalidCredentials(BaseError):
+    status_code: int = 401
+    detail: str = HTTPStatus(401).phrase
+    extra: dict = {
+        'error_code': 'other-2',
+        'message': 'Invalid credentials'
+    }
+
+
+class TokensSubjectNotEqual(BaseError):
+    status_code: int = 403
+    detail: str = HTTPStatus(403).phrase
+    extra: dict = {
+        'error_code': 'other-4',
+        'message': 'Tokens subject not equal'
     }
 
 

@@ -1,4 +1,5 @@
 from typing import Any, TypeAlias
+from uuid import UUID
 
 Sentinel: Any = object
 Seconds: TypeAlias = int
@@ -8,5 +9,5 @@ AccessToken: TypeAlias = str
 RefreshToken: TypeAlias = str
 ChangePasswordToken: TypeAlias = str
 
-UserId: TypeAlias = str
-Username: TypeAlias = str
+UserId: TypeAlias = UUID
+Username: TypeAlias = UUID

@@ -1,15 +1,17 @@
-from typing import Protocol
 from datetime import datetime
+from typing import Protocol
 from uuid import UUID
+
+from app.db.enums import UserRole
+from app.types import UserId, Username
 
 
 class UserProtocol(Protocol):
-    id: UUID
-    username: str
+    id: UserId
+    username: Username
     password: str
     email: str
     is_active: bool
-    role: int
     first_name: str
     last_name: str
     avatar: str
@@ -62,11 +64,13 @@ class CommentProtocol(Protocol):
 class TaskTransitionProtocol(Protocol):
     id: UUID
     task_id: UUID
-    user_id: UUID
+    user_id: UserId
     column_id: UUID
     moved_at: datetime
 
 
-class TaskLabelProtocol(Protocol):
-    task: UUID
-    label: UUID
+class RolesProtocol(Protocol):
+    id: UUID
+    user_id: UserId
+    board_id: UUID
+    role: UserRole
