@@ -111,7 +111,10 @@ class AuthController(BaseController[AuthConfig]):
             username=data.username,
             password=data.password,
             email=data.email,
-            is_active=False
+            is_active=False,
+            first_name=data.first_name,
+            last_name=data.last_name,
+            avatar=data.avatar
         )
         try:
             await task_manager.del_inactive_user(

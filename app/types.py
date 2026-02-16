@@ -10,4 +10,4 @@ RefreshToken: TypeAlias = str
 ChangePasswordToken: TypeAlias = str
 
 UserId: TypeAlias = UUID
-Username: TypeAlias = UUID
+Username: TypeAlias = str

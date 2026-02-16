@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Generic, TypeVar, Literal
 
-from ulid import ULID
+import uuid6
 
 from app.db.abc.configs import BaseDBConfig
 from app.db.abc.models import UserProtocol
@@ -11,8 +11,8 @@ from app.types import Sentinel, UserId, Username
 DBConfig = TypeVar('DBConfig', bound=BaseDBConfig)
 
 
-def get_id() -> str:
-    return str(ULID())
+def get_id() -> uuid6.UUID:
+    return uuid6.uuid7()
 
 
 @dataclass

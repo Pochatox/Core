@@ -2,7 +2,7 @@
 
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
 from pathlib import Path
@@ -26,7 +26,7 @@ from app.task_managers.configs import KapustaConfig
 from app.tokens.base import JWToken
 from app.tokens.configs import JWTokenConfig
 
-SERVICE_NAME = 'Pochatox'
+SERVICE_NAME = 'Pochatox-API'
 VERSION = '0.0.0'
 
 
@@ -151,20 +151,6 @@ class AuthConfig(BaseConfig):
 
 
 @dataclass(frozen=True)
-class TeamConfig(BaseConfig):
-    name_min_length: int = 2
-    name_max_length: int = 24
-    password_min_length: int = 5
-    password_max_length: int = 24
-
-    restricted_name_list: list[str] = field(default_factory=lambda: [
-        'auth', 'core', 'item', 'log', 'queue', 'raider', 'team', 'user'
-    ])
-
-    delete_team_token_exp: timedelta = timedelta(minutes=5)
-
-
-@dataclass(frozen=True)
 class UserConfig(BaseConfig):
     change_password_token_exp: timedelta = timedelta(minutes=5)
 
@@ -173,21 +159,6 @@ class UserConfig(BaseConfig):
 class RaiderConfig(BaseConfig):
     name_min_length: int = 2
     name_max_length: int = 12
-
-
-@dataclass(frozen=True)
-class ItemConfig(BaseConfig):
-    ...
-
-
-@dataclass(frozen=True)
-class QueueConfig(BaseConfig):
-    ...
-
-
-@dataclass(frozen=True)
-class LogConfig(BaseConfig):
-    ...
 
 
 @dataclass(frozen=True)

@@ -16,6 +16,9 @@ class RegistrationDTO(BaseDTO):
     email: str = Field(..., max_length=AuthConfig.email_max_length)
     password: str = Field(..., min_length=AuthConfig.password_min_length,
                           max_length=AuthConfig.password_max_length)
+    first_name: str
+    last_name: str
+    avatar: str
 
 
 class AuthDTO(BaseDTO):
