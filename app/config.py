@@ -141,7 +141,7 @@ class AuthConfig(BaseConfig):
     username_max_length: int = 12
     email_max_length: int = 256
     password_min_length: int = 5
-    password_max_length: int = 24
+    password_max_length: int = 74
 
     registration_token_exp: timedelta = timedelta(minutes=5)
     access_token_exp: timedelta = timedelta(hours=1)
@@ -156,13 +156,7 @@ class UserConfig(BaseConfig):
 
 
 @dataclass(frozen=True)
-class RaiderConfig(BaseConfig):
-    name_min_length: int = 2
-    name_max_length: int = 12
-
-
-@dataclass(frozen=True)
-class CoreConfig(BaseConfig):
+class BoardConfig(BaseConfig):
     ...
 
 

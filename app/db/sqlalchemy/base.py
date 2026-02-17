@@ -1,21 +1,25 @@
-# flake8-in-file-ignores: noqa: WPS204, WPS203
+# flake8-in-file-ignores: noqa: WPS110, WPS204, WPS203, WPS615
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import AsyncGenerator, Literal, NoReturn, Sequence
+from typing import AsyncGenerator, Literal, NoReturn, Optional, Sequence
+from uuid import UUID
 
-from sqlalchemy import case, delete, select
+from sqlalchemy import and_, case, delete, exists, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
                                     create_async_engine)
+from sqlalchemy.orm import selectinload
 
 from app.db.abc.base import BaseAsyncDB, get_id
-from app.db.abc.models import UserProtocol
-from app.db.exc import (ActivateUserError, DatabaseError,
+from app.db.abc.models import BoardProtocol, UserProtocol
+from app.db.enums import UserRole
+from app.db.exc import (ActivateUserError, BoardNotFoundError, DatabaseError,
                         InvalidCredentialsError, UniqueEmailError,
                         UniqueUsernameError, UserNotFoundError)
 from app.db.sqlalchemy.config import SQLAlchemyDBConfig
-from app.db.sqlalchemy.models import Base, User
+from app.db.sqlalchemy.models import (Base, Board, Column, Label, Role, Task,
+                                      User)
 from app.types import Sentinel, UserId, Username
 
 
@@ -161,6 +165,103 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 return user.id
             else:
                 raise InvalidCredentialsError('Invalid username or password')
+
+    async def create_board(
+        self, owner_id: UserId, name: str, description: Optional[str] = None
+    ) -> BoardProtocol:
+        async with self._get_write_session() as session:
+            new_board = Board(
+                id=get_id(),
+                owner_id=owner_id,
+                name=name,
+                description=description
+            )
+            role = Role(
+                id=get_id(),
+                user_id=owner_id,
+                board_id=new_board.id,
+                role=UserRole.OWNER
+            )
+            session.add(new_board)
+            session.add(role)
+        return new_board
+
+    async def get_board(self, board_id: UUID) -> BoardProtocol:
+        async with self._get_read_session() as session:
+            stmt = (
+                select(Board)
+                .where(Board.id == board_id)
+                .options(
+                    selectinload(Board.owner).load_only(
+                        User.id,
+                        User.username,
+                        User.avatar,
+                        User.first_name,
+                        User.last_name
+                    ),
+                    selectinload(Board.columns).load_only(
+                        Column.id,
+                        Column.name,
+                        Column.position,
+                        Column.wip
+                    ),
+                    selectinload(Board.columns)
+                    .selectinload(Column.tasks)
+                    .load_only(
+                        Task.id,
+                        Task.name,
+                        Task.description,
+                        Task.priority,
+                        Task.created_at,
+                        Task.assignee_id,
+                        Task.confirmed_by_id
+                    ),
+                    selectinload(Board.columns)
+                    .selectinload(Column.tasks)
+                    .selectinload(Task.assignee)
+                    .load_only(
+                        User.id,
+                        User.username,
+                        User.avatar,
+                        User.first_name,
+                        User.last_name
+                    ),
+                    selectinload(Board.columns)
+                    .selectinload(Column.tasks)
+                    .selectinload(Task.confirmed_by)
+                    .load_only(
+                        User.id,
+                        User.username,
+                        User.avatar,
+                        User.first_name,
+                        User.last_name
+                    ),
+                    selectinload(Board.columns)
+                    .selectinload(Column.tasks)
+                    .selectinload(Task.labels)
+                    .load_only(Label.name, Label.color)
+                )
+            )
+            board: Board = (
+                await session.execute(stmt)
+            ).scalars().unique().one_or_none()
+        if not board:
+            raise BoardNotFoundError(f'invalid id ({board_id})')
+
+        return board
+
+    async def is_user_in_board(self, user_id: UserId, board_id: UUID) -> bool:
+        async with self._get_read_session() as session:
+            stmt = select(
+                exists().where(
+                    and_(
+                        Role.user_id == user_id,
+                        Role.board_id == board_id
+                    )
+                )
+            )
+            result = await session.execute(stmt)
+        return result.scalar()
 
     @asynccontextmanager
     async def _get_read_session(self) -> AsyncGenerator[AsyncSession, None]:

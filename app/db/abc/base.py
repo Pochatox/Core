@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, TypeVar, Literal
+from typing import Generic, Literal, Optional, TypeVar
 
 import uuid6
 
 from app.db.abc.configs import BaseDBConfig
-from app.db.abc.models import UserProtocol
+from app.db.abc.models import BoardProtocol, UserProtocol
 from app.types import Sentinel, UserId, Username
 
 DBConfig = TypeVar('DBConfig', bound=BaseDBConfig)
@@ -65,3 +65,8 @@ class BaseAsyncDB(ABC, Generic[DBConfig]):
 
     @abstractmethod
     async def activate_user(self, username: Username) -> UserId: ...
+
+    @abstractmethod
+    async def create_board(
+        self, owner_id: UserId, name: str, description: Optional[str] = None
+    ) -> BoardProtocol: ...

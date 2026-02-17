@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Generic, Self, TypeVar
+from uuid import UUID
 
 import jwt
 
@@ -43,6 +44,9 @@ class JWToken(BaseToken[JWTokenConfig]):
     def encode(self) -> str:
         try:
             payload = self.payload.model_dump()
+            for key, value in payload.items():  # noqa: WPS110
+                if isinstance(value, UUID):
+                    payload[key] = str(value)
             token = jwt.encode(
                 payload=payload,
                 key=self.config.key,

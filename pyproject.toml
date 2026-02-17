@@ -33,7 +33,7 @@ pyflakes = "^3.2.0"
 unify = "^0.5"
 flake8-in-file-ignores = "^0.3.0"
 pytest = "^8.3.5"
-testcontainers = {extras = ["mailpit"], version = "^4.10.0"}
+testcontainers = { extras = ["mailpit"], version = "^4.10.0" }
 pytest-asyncio = "^0.26.0"
 pytest-mock = "^3.14.0"
 deepdiff = "^8.4.2"
@@ -87,12 +87,12 @@ ignore = [
     "WPS604",
     "WPS420",
     "WPS430",
+    "WPS506",
     "WPS231",
     "WPS232",
     "WPS238",
     "WPS211",
     "WPS336",
-
 ]
 
 select = ["ANN", "B", "C", "D", "E", "F", "I", "T4", "W"]
@@ -101,11 +101,9 @@ extend-select = ["B9"]
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "module"
 asyncio_default_test_loop_scope = "module"
-testpaths = [
-    "tests/unit"
-]
+testpaths = ["tests/unit"]
 filterwarnings = [
-    "ignore:.*Support for class-based `config` is deprecated.*:DeprecationWarning"
+    "ignore:.*Support for class-based `config` is deprecated.*:DeprecationWarning",
 ]
 
 [build-system]

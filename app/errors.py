@@ -171,6 +171,15 @@ class UserNotExists(BaseError):
         'message': 'User not exists'
     }
 
+
+class BoardNotExists(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'exist-2',
+        'message': 'The board does not exist'
+    }
+
 ###
 # exp-X: Error codes for expired tokens
 ###
@@ -191,6 +200,19 @@ class RefreshTokenExpired(BaseError):
     extra: dict = {
         'error_code': 'exp-2',
         'message': 'Refresh token expired'
+    }
+
+###
+# access-X: Error codes for access restrictions
+###
+
+
+class UserNotInBoard(BaseError):
+    status_code: int = 403
+    detail: str = HTTPStatus(403).phrase
+    extra: dict = {
+        'error_code': 'access-1',
+        'message': 'The user does not have access to the board'
     }
 
 ###

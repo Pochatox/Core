@@ -74,7 +74,14 @@ class User(ModelWithPassword):
     )
 
     boards: Mapped[list['Board']] = relationship(back_populates='owner')
-    tasks: Mapped[list['Task']] = relationship(back_populates='assignee')
+    tasks: Mapped[list['Task']] = relationship(
+        back_populates='assignee',
+        foreign_keys='Task.assignee_id'
+    )
+    confirmed_tasks: Mapped[list['Task']] = relationship(
+        back_populates='confirmed_by',
+        foreign_keys='Task.confirmed_by_id'
+    )
     comments: Mapped[list['Comment']] = relationship(back_populates='author')
     transitions: Mapped[list['TaskTransition']] = relationship(back_populates='user')
     roles: Mapped[list['Role']] = relationship(back_populates='user')
@@ -142,6 +149,9 @@ class Task(Base):
     assignee_id: Mapped[UUID | None] = mapped_column(
         SAUUID(as_uuid=True), ForeignKey('users.id')
     )
+    confirmed_by_id: Mapped[UUID | None] = mapped_column(
+        SAUUID(as_uuid=True), ForeignKey('users.id')
+    )
     name: Mapped[str] = mapped_column(String(24), nullable=False)
     description: Mapped[str] = mapped_column(String(4096), nullable=False)
     priority: Mapped[TaskPriority] = mapped_column(
@@ -154,7 +164,14 @@ class Task(Base):
 
     board: Mapped['Board'] = relationship(back_populates='tasks')
     column: Mapped['Column'] = relationship(back_populates='tasks')
-    assignee: Mapped['User'] = relationship(back_populates='tasks')
+    assignee: Mapped['User'] = relationship(
+        back_populates='tasks',
+        foreign_keys=[assignee_id]
+    )
+    confirmed_by: Mapped['User'] = relationship(
+        back_populates='confirmed_tasks',
+        foreign_keys=[confirmed_by_id]
+    )
     comments: Mapped[list['Comment']] = relationship(back_populates='task')
     transitions: Mapped[list['TaskTransition']] = relationship(back_populates='task')
     labels: Mapped[list['Label']] = relationship(

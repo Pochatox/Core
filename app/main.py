@@ -18,6 +18,7 @@ from app.db.abc.base import BaseAsyncDB
 from app.db.exc import DatabaseError
 from app.dependencies import auth_client, get_language
 from app.handlers.auth import AuthController
+from app.handlers.board import BoardController
 from app.handlers.user import UserController
 from app.mailers.base import BaseAsyncMailer, MailerError
 from app.task_managers.base import BaseAsyncTaskManager, Tasks
@@ -110,7 +111,7 @@ def mailer_exc_handler(request: Request, exc: MailerError) -> NoReturn:
 
 app = Litestar(
     lifespan=[lifespan],
-    route_handlers=[AuthController, UserController],
+    route_handlers=[AuthController, UserController, BoardController],
     dependencies={
         'db': Provide(provide_db, sync_to_thread=False),
         'cache': Provide(provide_cache, sync_to_thread=False),

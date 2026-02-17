@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Protocol
+from typing import List, Protocol
 from uuid import UUID
 
 from app.db.enums import UserRole
@@ -17,12 +19,26 @@ class UserProtocol(Protocol):
     avatar: str
     created_at: datetime
 
+    boards: List[BoardProtocol]
+    tasks: List[TaskProtocol]
+    confirmed_tasks: List[TaskProtocol]
+    comments: List[CommentProtocol]
+    transitions: List[TaskTransitionProtocol]
+    roles: List[RolesProtocol]
+
 
 class BoardProtocol(Protocol):
     id: UUID
     owner_id: UUID
     name: str
+    description: str
     created_at: datetime
+
+    owner: UserProtocol
+    columns: List[ColumnProtocol]
+    tasks: List[TaskProtocol]
+    labels: List[LabelProtocol]
+    roles: List[RolesProtocol]
 
 
 class ColumnProtocol(Protocol):
@@ -34,16 +50,29 @@ class ColumnProtocol(Protocol):
     wip: int
     created_at: datetime
 
+    board: BoardProtocol
+    tasks: List[TaskProtocol]
+    transitions: List[TaskTransitionProtocol]
+
 
 class TaskProtocol(Protocol):
     id: UUID
     board_id: UUID
     column_id: UUID
     assignee_id: UUID | None
+    confirmed_by_id: UUID | None
     name: str
     description: str
     priority: int
     created_at: datetime
+
+    board: BoardProtocol
+    column: ColumnProtocol
+    assignee: UserProtocol | None
+    confirmed_by: UserProtocol | None
+    comments: List[CommentProtocol]
+    transitions: List[TaskTransitionProtocol]
+    labels: List[LabelProtocol]
 
 
 class LabelProtocol(Protocol):
@@ -51,6 +80,9 @@ class LabelProtocol(Protocol):
     board_id: UUID
     name: str
     color: str
+
+    board: BoardProtocol
+    tasks: List[TaskProtocol]
 
 
 class CommentProtocol(Protocol):
@@ -60,6 +92,9 @@ class CommentProtocol(Protocol):
     text: str
     created_at: datetime
 
+    task: TaskProtocol
+    author: UserProtocol
+
 
 class TaskTransitionProtocol(Protocol):
     id: UUID
@@ -68,9 +103,16 @@ class TaskTransitionProtocol(Protocol):
     column_id: UUID
     moved_at: datetime
 
+    task: TaskProtocol
+    user: UserProtocol
+    column: ColumnProtocol
+
 
 class RolesProtocol(Protocol):
     id: UUID
     user_id: UserId
     board_id: UUID
     role: UserRole
+
+    user: UserProtocol
+    board: BoardProtocol
