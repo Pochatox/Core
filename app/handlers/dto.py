@@ -93,3 +93,40 @@ class ShortTaskDTO(BaseDTO):
 class LabelShortDTO(BaseDTO):
     name: str
     color: str
+
+
+class CreateTaskDTO(BaseDTO):
+    board_id: UUID
+    name: str
+    description: str
+    priority: TaskPriority
+
+
+class TaskDTO(BaseDTO):
+    id: UUID
+    board_id: UUID
+    column_id: UUID
+    assignee_id: UUID | None
+    confirmed_by_id: UUID | None
+    name: str
+    description: str
+    priority: TaskPriority
+    created_at: datetime
+
+
+class CreateColumnDTO(BaseDTO):
+    board_id: UUID
+    name: str
+    description: str | None
+    wip: int
+    created_at: datetime
+
+
+class ColumnDTO(BaseDTO):
+    id: UUID
+    board_id: UUID
+    name: str
+    description: str | None
+    position: int
+    wip: int
+    created_at: datetime

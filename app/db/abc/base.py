@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Generic, Literal, Optional, TypeVar
+from uuid import UUID
 
 import uuid6
 
@@ -13,6 +14,13 @@ DBConfig = TypeVar('DBConfig', bound=BaseDBConfig)
 
 def get_id() -> uuid6.UUID:
     return uuid6.uuid7()
+
+
+def str_to_id(str_id: str) -> UUID:
+    try:
+        return UUID(str_id)
+    except ValueError as e:
+        raise ValueError(f'Invalid id {str_id}') from e
 
 
 @dataclass

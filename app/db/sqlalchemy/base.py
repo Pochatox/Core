@@ -5,21 +5,23 @@ from dataclasses import dataclass
 from typing import AsyncGenerator, Literal, NoReturn, Optional, Sequence
 from uuid import UUID
 
-from sqlalchemy import and_, case, delete, exists, select
+from sqlalchemy import and_, case, delete, exists, func, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
                                     create_async_engine)
 from sqlalchemy.orm import selectinload
 
 from app.db.abc.base import BaseAsyncDB, get_id
-from app.db.abc.models import BoardProtocol, UserProtocol
-from app.db.enums import UserRole
-from app.db.exc import (ActivateUserError, BoardNotFoundError, DatabaseError,
-                        InvalidCredentialsError, UniqueEmailError,
-                        UniqueUsernameError, UserNotFoundError)
+from app.db.abc.models import (BoardProtocol, ColumnProtocol, TaskProtocol,
+                               UserProtocol)
+from app.db.enums import TaskPriority, UserRole
+from app.db.exc import (ActivateUserError, BoardNotFoundError, ColumnNotExist,
+                        DatabaseError, InvalidColumnPosition, InvalidCredentialsError,
+                        UniqueEmailError, UniqueUsernameError,
+                        UserNotFoundError)
 from app.db.sqlalchemy.config import SQLAlchemyDBConfig
 from app.db.sqlalchemy.models import (Base, Board, Column, Label, Role, Task,
-                                      User)
+                                      TaskTransition, User)
 from app.types import Sentinel, UserId, Username
 
 
@@ -262,6 +264,86 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             )
             result = await session.execute(stmt)
         return result.scalar()
+
+    async def create_column(
+        self, board_id: UUID, name: str, description: Optional[str], position: int,
+        wip: int
+    ) -> ColumnProtocol:
+        async with self._get_write_session() as session:
+            max_position = await session.scalar(
+                select(func.count())
+                .select_from(Column)
+                .where(Column.board_id == board_id)
+            )
+
+            if position < 1 or position > max_position + 1:
+                raise InvalidColumnPosition()
+            new_column = Column(
+                id=get_id(),
+                board_id=board_id,
+                name=name,
+                description=description,
+                position=position,
+                wip=wip
+            )
+            await session.execute(
+                update(Column)
+                .where(
+                    Column.board_id == board_id,
+                    Column.position >= position
+                )
+                .values(position=Column.position + 1)
+            )
+            session.add(new_column)
+        return new_column
+
+    async def create_task(
+        self, board_id: UUID, assign_id: UUID | None,
+        confirmed_by_id: UUID | None, name: str, description: str,
+        priority: TaskPriority, user_id: UserId
+    ) -> TaskProtocol:
+        async with self._get_read_session() as session:
+            stmt = (
+                select(Column.id)
+                .where(Column.board_id == board_id)
+                .order_by(Column.position.asc())
+            )
+            last_column = (await session.execute(stmt)).scalars().first()
+            if not last_column:
+                raise ColumnNotExist('The table has no columns')
+        async with self._get_write_session() as session:
+            new_task = Task(
+                id=get_id(),
+                board_id=board_id,
+                column_id=last_column,
+                assignee_id=assign_id,
+                confirmed_by_id=confirmed_by_id,
+                name=name,
+                description=description,
+                priority=priority
+            )
+            new_task_transition = TaskTransition(
+                id=get_id(),
+                task_id=new_task.id,
+                user_id=user_id,
+                column=last_column,
+            )
+            session.add(new_task)
+            session.add(new_task_transition)
+        return new_task
+
+    async def get_user_role(self, user_id: UserId, board_id: UUID) -> UserRole:
+        async with self._get_read_session() as session:
+            stmt = select(Role.role).where(
+                Role.user_id == user_id,
+                Role.board_id == board_id
+            )
+            role = (await session.execute(stmt)).scalar_one_or_none()
+            if not role:
+                raise UserNotFoundError(
+                    f'User {user_id} has no role in board {board_id}'
+                )
+            return role
 
     @asynccontextmanager
     async def _get_read_session(self) -> AsyncGenerator[AsyncSession, None]:

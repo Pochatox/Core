@@ -5,6 +5,7 @@ from typing import List, Protocol
 from uuid import UUID
 
 from app.db.enums import UserRole
+from app.handlers.dto import TaskPriority
 from app.types import UserId, Username
 
 
@@ -63,7 +64,7 @@ class TaskProtocol(Protocol):
     confirmed_by_id: UUID | None
     name: str
     description: str
-    priority: int
+    priority: TaskPriority
     created_at: datetime
 
     board: BoardProtocol

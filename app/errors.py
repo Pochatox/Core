@@ -180,6 +180,15 @@ class BoardNotExists(BaseError):
         'message': 'The board does not exist'
     }
 
+
+class InvalidColumnPosition(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'exist-4',
+        'message': 'The column does not exist'
+    }
+
 ###
 # exp-X: Error codes for expired tokens
 ###
@@ -213,6 +222,15 @@ class UserNotInBoard(BaseError):
     extra: dict = {
         'error_code': 'access-1',
         'message': 'The user does not have access to the board'
+    }
+
+
+class InsufficientRoleError(BaseError):
+    status_code: int = 403
+    detail: str = HTTPStatus(403).phrase
+    extra: dict = {
+        'error_code': 'access-',
+        'message': 'The user has an insufficient role'
     }
 
 ###

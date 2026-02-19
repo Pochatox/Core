@@ -17,6 +17,7 @@ from litestar.openapi.plugins import SwaggerRenderPlugin
 
 from app.caches.base import RedisAsyncCache
 from app.caches.configs import RedisConfig
+from app.db.enums import UserRole
 from app.db.sqlalchemy.base import AsyncSQLAlchemyDB
 from app.db.sqlalchemy.config import SQLAlchemyDBConfig
 from app.mailers.base import AsyncSMTPMailer
@@ -157,7 +158,8 @@ class UserConfig(BaseConfig):
 
 @dataclass(frozen=True)
 class BoardConfig(BaseConfig):
-    ...
+    min_create_column_role = UserRole.OWNER
+    min_create_task_role = UserRole.MAINTAINER
 
 
 EMAIL_REGISTRATION_SUBJECT = MappingProxyType({
