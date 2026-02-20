@@ -189,6 +189,24 @@ class InvalidColumnPosition(BaseError):
         'message': 'The column does not exist'
     }
 
+
+class ColumnNotExists(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'exist-5',
+        'message': 'The column does not exist'
+    }
+
+
+class TaskNotExists(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'exist-6',
+        'message': 'The task does not exist'
+    }
+
 ###
 # exp-X: Error codes for expired tokens
 ###

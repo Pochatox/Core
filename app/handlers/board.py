@@ -7,8 +7,8 @@ from app import errors as error
 from app import openapi_tags as tags
 from app.config import BoardConfig, DataBase
 from app.db.abc.base import str_to_id
-from app.db.abc.models import TaskProtocol
-from app.db.exc import ColumnNotExist, UserNotFoundError
+from app.db.abc.models import ColumnProtocol, TaskProtocol
+from app.db.exc import ColumnNotExists, TaskNotExists, UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
 from app.handlers.dto import (BoardDTO, ColumnDTO, ColumnShortDTO,
@@ -60,9 +60,12 @@ class BoardController(BaseController[BoardConfig]):
         ]),
         403: litestar_response_spec(examples=[
             Example('UserNotInBoard', value=error.UserNotInBoard())
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('BoardNotExists', value=error.BoardNotExists())
         ])
     }, tags=[tags.board_handler])
-    async def board(
+    async def get_board(
         self, auth_client: AccessTokenPayload, db: DataBase, board_id: str
     ) -> BoardDTO:
         try:
@@ -114,14 +117,17 @@ class BoardController(BaseController[BoardConfig]):
             ]
         )
 
-    @post('/', responses={
+    @post('/task', responses={
         401: litestar_response_spec(examples=[
             Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
             Example('AccessTokenExpired', value=error.AccessTokenExpired()),
             Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
         ]),
+        403: litestar_response_spec(examples=[
+            Example('InsufficientRoleError', value=error.InsufficientRoleError()),
+        ]),
         422: litestar_response_spec(examples=[
-            Example('ColumnNotExists', value=error.InvalidColumnPosition())
+            Example('ColumnNotExist', value=error.ColumnNotExists())
         ])
     }, tags=[tags.board_handler])
     async def create_task(
@@ -145,8 +151,8 @@ class BoardController(BaseController[BoardConfig]):
                 priority=data.priority,
                 user_id=auth_client.sub
             )
-        except ColumnNotExist as e:
-            raise litestar_raise(error.InvalidColumnPosition) from e
+        except ColumnNotExists as e:
+            raise litestar_raise(error.ColumnNotExists) from e
         return TaskDTO(
             id=task.id,
             board_id=task.board_id,
@@ -159,7 +165,7 @@ class BoardController(BaseController[BoardConfig]):
             created_at=task.created_at
         )
 
-    @post('/', responses={
+    @post('/column', responses={
         401: litestar_response_spec(examples=[
             Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
             Example('AccessTokenExpired', value=error.AccessTokenExpired()),
@@ -187,20 +193,125 @@ class BoardController(BaseController[BoardConfig]):
             raise litestar_raise(error.InsufficientRoleError)
 
         try:
-            task: TaskProtocol = await db.create_column(
+            column: ColumnProtocol = await db.create_column(
                 board_id=data.board_id,
                 name=data.name,
                 description=data.description,
                 wip=data.wip
             )
-        except ColumnNotExist as e:
+        except ColumnNotExists as e:
             raise litestar_raise(error.InvalidColumnPosition) from e
+        return ColumnDTO(
+            id=column.id,
+            board_id=column.board_id,
+            name=column.name,
+            description=column.description,
+            position=column.position,
+            wip=column.wip,
+            created_at=column.created_at,
+            tasks=[]
+        )
+
+    @get('/column/{column_id:str}', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        403: litestar_response_spec(examples=[
+            Example('UserNotInBoard', value=error.UserNotInBoard()),
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('ColumnNotExists', value=error.ColumnNotExists())
+        ])
+    }, tags=[tags.board_handler])
+    async def get_column(
+        self, auth_client: AccessTokenPayload, db: DataBase, column_id: str
+    ) -> ColumnDTO:
+        try:
+            valid_column_id = str_to_id(column_id)
+        except ValueError as e:
+            raise litestar_raise(error.ColumnNotExists) from e
+        if not await db.is_user_in_board_by_column(auth_client.sub, valid_column_id):
+            raise litestar_raise(error.UserNotInBoard)
+
+        try:
+            column = await db.get_column(column_id)
+        except ColumnNotExists as e:
+            raise litestar_raise(error.ColumnNotExists) from e
+
+        return ColumnDTO(
+            id=column.id,
+            board_id=column.board_id,
+            name=column.name,
+            description=column.description,
+            position=column.position,
+            wip=column.wip,
+            created_at=column.created_at,
+            tasks=[
+                ShortTaskDTO(
+                    assigne=UserPreviewDTO(
+                        username=task.assignee.username,
+                        avatar=task.assignee.avatar
+                    ) if task.assignee else None,
+                    confirmed_by=UserPreviewDTO(
+                        username=task.confirmed_by.username,
+                        avatar=task.confirmed_by.avatar
+                    ) if task.confirmed_by else None,
+                    name=task.name,
+                    description=task.description,
+                    priority=task.priority,
+                    created_at=task.created_at,
+                    labels=[
+                        LabelShortDTO(name=label.name, color=label.color)
+                        for label in task.labels
+                    ]
+                )
+                for task in column.tasks
+            ]
+        )
+
+    @get('/task/{task_id:str}', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('ColumnNotExists', value=error.InvalidColumnPosition())
+        ])
+    }, tags=[tags.board_handler])
+    async def get_task(
+        self, auth_client: AccessTokenPayload, db: DataBase, task_id: str
+    ) -> TaskDTO:
+        try:
+            valid_task_id = str_to_id(task_id)
+        except ValueError as e:
+            raise litestar_raise(error.ColumnNotExists) from e
+        if not await db.is_user_in_board_by_task(auth_client.sub, valid_task_id):
+            raise litestar_raise(error.UserNotInBoard)
+
+        try:
+            task = await db.get_task(task_id)
+        except TaskNotExists as e:
+            raise litestar_raise(error.TaskNotExists) from e
+
         return TaskDTO(
             id=task.id,
             board_id=task.board_id,
             column_id=task.column_id,
-            assignee_id=task.assignee_id,
-            confirmed_by_id=task.confirmed_by_id,
+            assignee=UserShortDTO(
+                username=task.assignee.username,
+                first_name=task.assignee.first_name,
+                last_name=task.assignee.last_name,
+                avatar=task.assignee.avatar
+            ) if task.assignee else None,
+            confirmed_by=UserShortDTO(
+                username=task.confirmed_by.username,
+                first_name=task.confirmed_by.first_name,
+                last_name=task.confirmed_by.last_name,
+                avatar=task.confirmed_by.avatar
+            ) if task.confirmed_by else None,
             name=task.name,
             description=task.description,
             priority=task.priority,

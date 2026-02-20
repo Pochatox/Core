@@ -5,7 +5,7 @@ from uuid import UUID
 
 from passlib.context import CryptContext
 from sqlalchemy import UUID as SAUUID
-from sqlalchemy import Boolean, DateTime
+from sqlalchemy import Boolean, CheckConstraint, DateTime
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import (ForeignKey, Index, Integer, String, UniqueConstraint,
                         func)
@@ -136,6 +136,12 @@ class Column(Base):
 
 class Task(Base):
     __tablename__ = 'tasks'
+    __table_args__ = (
+        CheckConstraint(
+            "(confirmed_by_id IS NULL) OR (column_id IS NULL)",
+            name="chk_confirmed_or_column"
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(
         SAUUID(as_uuid=True), primary_key=True, default=get_id
@@ -143,7 +149,7 @@ class Task(Base):
     board_id: Mapped[UUID] = mapped_column(
         SAUUID(as_uuid=True), ForeignKey('boards.id'), nullable=False, index=True
     )
-    column_id: Mapped[UUID] = mapped_column(
+    column_id: Mapped[UUID | None] = mapped_column(
         SAUUID(as_uuid=True), ForeignKey('columns.id'), nullable=False
     )
     assignee_id: Mapped[UUID | None] = mapped_column(

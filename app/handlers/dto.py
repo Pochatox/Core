@@ -64,20 +64,9 @@ class CreateBoardDTO(BaseDTO):
     description: Optional[str]
 
 
-class BoardDTO(BaseDTO):
-    id: UUID
-    owner: UserShortDTO
+class LabelShortDTO(BaseDTO):
     name: str
-    description: Optional[str]
-    created_ad: datetime
-    columns: list['ColumnShortDTO']
-
-
-class ColumnShortDTO(BaseDTO):
-    name: str
-    position: int
-    wip: int
-    tasks: list['ShortTaskDTO']
+    color: str
 
 
 class ShortTaskDTO(BaseDTO):
@@ -87,12 +76,23 @@ class ShortTaskDTO(BaseDTO):
     description: str
     priority: TaskPriority
     created_at: datetime
-    labels: list['LabelShortDTO']
+    labels: list[LabelShortDTO]
 
 
-class LabelShortDTO(BaseDTO):
+class ColumnShortDTO(BaseDTO):
     name: str
-    color: str
+    position: int
+    wip: int
+    tasks: list[ShortTaskDTO]
+
+
+class BoardDTO(BaseDTO):
+    id: UUID
+    owner: UserShortDTO
+    name: str
+    description: Optional[str]
+    created_ad: datetime
+    columns: list[ColumnShortDTO]
 
 
 class CreateTaskDTO(BaseDTO):
@@ -106,8 +106,8 @@ class TaskDTO(BaseDTO):
     id: UUID
     board_id: UUID
     column_id: UUID
-    assignee_id: UUID | None
-    confirmed_by_id: UUID | None
+    assignee: UserShortDTO | None
+    confirmed_by: UserShortDTO | None
     name: str
     description: str
     priority: TaskPriority
@@ -130,3 +130,4 @@ class ColumnDTO(BaseDTO):
     position: int
     wip: int
     created_at: datetime
+    tasks: list['ShortTaskDTO']

@@ -27,7 +27,7 @@ from app.task_managers.configs import KapustaConfig
 from app.tokens.base import JWToken
 from app.tokens.configs import JWTokenConfig
 
-SERVICE_NAME = 'Pochatox-API'
+SERVICE_NAME = 'Pochatox-Core'
 VERSION = '0.0.0'
 
 

@@ -4,8 +4,7 @@ from datetime import datetime
 from typing import List, Protocol
 from uuid import UUID
 
-from app.db.enums import UserRole
-from app.handlers.dto import TaskPriority
+from app.db.enums import TaskPriority, UserRole
 from app.types import UserId, Username
 
 

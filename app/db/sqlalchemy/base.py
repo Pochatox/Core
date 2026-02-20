@@ -1,4 +1,4 @@
-# flake8-in-file-ignores: noqa: WPS110, WPS204, WPS203, WPS615
+# flake8-in-file-ignores: noqa: WPS110, WPS204, WPS203, WPS615, WPS221
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -15,10 +15,10 @@ from app.db.abc.base import BaseAsyncDB, get_id
 from app.db.abc.models import (BoardProtocol, ColumnProtocol, TaskProtocol,
                                UserProtocol)
 from app.db.enums import TaskPriority, UserRole
-from app.db.exc import (ActivateUserError, BoardNotFoundError, ColumnNotExist,
+from app.db.exc import (ActivateUserError, BoardNotFoundError, ColumnNotExists,
                         DatabaseError, InvalidColumnPosition, InvalidCredentialsError,
                         UniqueEmailError, UniqueUsernameError,
-                        UserNotFoundError)
+                        UserNotFoundError, TaskNotExists)
 from app.db.sqlalchemy.config import SQLAlchemyDBConfig
 from app.db.sqlalchemy.models import (Base, Board, Column, Label, Role, Task,
                                       TaskTransition, User)
@@ -222,21 +222,15 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                     .selectinload(Column.tasks)
                     .selectinload(Task.assignee)
                     .load_only(
-                        User.id,
                         User.username,
                         User.avatar,
-                        User.first_name,
-                        User.last_name
                     ),
                     selectinload(Board.columns)
                     .selectinload(Column.tasks)
                     .selectinload(Task.confirmed_by)
                     .load_only(
-                        User.id,
                         User.username,
                         User.avatar,
-                        User.first_name,
-                        User.last_name
                     ),
                     selectinload(Board.columns)
                     .selectinload(Column.tasks)
@@ -259,6 +253,38 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                     and_(
                         Role.user_id == user_id,
                         Role.board_id == board_id
+                    )
+                )
+            )
+            result = await session.execute(stmt)
+        return result.scalar()
+
+    async def is_user_in_board_by_column(
+        self, user_id: UserId, column_id: UUID
+    ) -> bool:
+        async with self._get_read_session() as session:
+            stmt = select(
+                exists().where(
+                    and_(
+                        Role.user_id == user_id,
+                        Role.board_id == select(Column.board_id).where(
+                            Column.id == column_id
+                        ).scalar_subquery()
+                    )
+                )
+            )
+            result = await session.execute(stmt)
+        return result.scalar()
+
+    async def is_user_in_board_by_task(self, user_id: UserId, task_id: UUID) -> bool:
+        async with self._get_read_session() as session:
+            stmt = select(
+                exists().where(
+                    and_(
+                        Role.user_id == user_id,
+                        Role.board_id == select(Task.board_id).where(
+                            Task.id == task_id
+                        ).scalar_subquery()
                     )
                 )
             )
@@ -310,7 +336,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             )
             last_column = (await session.execute(stmt)).scalars().first()
             if not last_column:
-                raise ColumnNotExist('The table has no columns')
+                raise ColumnNotExists('The table has no columns')
         async with self._get_write_session() as session:
             new_task = Task(
                 id=get_id(),
@@ -344,6 +370,73 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                     f'User {user_id} has no role in board {board_id}'
                 )
             return role
+
+    async def get_column(self, column_id: UUID) -> ColumnProtocol:
+        async with self._get_read_session() as session:
+            stmt = (
+                select(Column)
+                .where(Column.id == column_id)
+                .options(
+                    selectinload(Column.tasks)
+                    .load_only(
+                        Task.id,
+                        Task.name,
+                        Task.description,
+                        Task.priority,
+                        Task.created_at,
+                        Task.assignee_id,
+                        Task.confirmed_by_id
+                    ),
+                    selectinload(Column.tasks)
+                    .selectinload(Task.assignee)
+                    .load_only(
+                        User.username,
+                        User.avatar,
+                    ),
+                    selectinload(Column.tasks)
+                    .selectinload(Task.confirmed_by)
+                    .load_only(
+                        User.username,
+                        User.avatar,
+                    ),
+                    selectinload(Column.tasks)
+                    .selectinload(Task.labels)
+                    .load_only(Label.name, Label.color)
+                )
+            )
+            column: Column = (
+                await session.execute(stmt)
+            ).scalars().unique().one_or_none()
+        if not column:
+            raise ColumnNotExists(f'Column with id {column_id} is not found')
+        return column
+
+    async def get_task(self, task_id: UUID) -> TaskProtocol:
+        async with self._get_read_session() as session:
+            stmt = (
+                select(Task)
+                .where(Task.id == task_id)
+                .options(
+                    selectinload(Task.assignee).load_only(
+                        User.username,
+                        User.avatar,
+                        User.first_name,
+                        User.last_name
+                    ),
+                    selectinload(Task.confirmed_by).load_only(
+                        User.username,
+                        User.avatar,
+                        User.first_name,
+                        User.last_name
+                    ),
+                    selectinload(Task.labels).load_only(Label.name, Label.color),
+                    selectinload(Task.comments)
+                )
+            )
+            task: Task = (await session.execute(stmt)).scalars().unique().one_or_none()
+        if not task:
+            raise TaskNotExists(f'Task with id {task_id} is not found')
+        return task
 
     @asynccontextmanager
     async def _get_read_session(self) -> AsyncGenerator[AsyncSession, None]:
