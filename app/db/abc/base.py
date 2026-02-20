@@ -49,7 +49,7 @@ class BaseAsyncDB(ABC, Generic[DBConfig]):
     @abstractmethod
     async def create_user(
         self, username: str, password: str, email: str, is_active: bool,
-        id: UserId = Sentinel
+        first_name: str, last_name: str, avatar: str, id: UserId = Sentinel
     ) -> UserProtocol: ...
 
     @abstractmethod

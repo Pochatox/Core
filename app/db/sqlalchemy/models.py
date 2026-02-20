@@ -150,7 +150,7 @@ class Task(Base):
         SAUUID(as_uuid=True), ForeignKey('boards.id'), nullable=False, index=True
     )
     column_id: Mapped[UUID | None] = mapped_column(
-        SAUUID(as_uuid=True), ForeignKey('columns.id'), nullable=False
+        SAUUID(as_uuid=True), ForeignKey('columns.id')
     )
     assignee_id: Mapped[UUID | None] = mapped_column(
         SAUUID(as_uuid=True), ForeignKey('users.id')

@@ -247,8 +247,17 @@ class InsufficientRoleError(BaseError):
     status_code: int = 403
     detail: str = HTTPStatus(403).phrase
     extra: dict = {
-        'error_code': 'access-',
+        'error_code': 'access-2',
         'message': 'The user has an insufficient role'
+    }
+
+
+class TaskNotAssigneeError(BaseError):
+    status_code: int = 403
+    detail: str = HTTPStatus(403).phrase
+    extra: dict = {
+        'error_code': 'access-3',
+        'message': 'The user is not the assignee of this task'
     }
 
 ###

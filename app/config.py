@@ -76,6 +76,8 @@ openapi_config = OpenAPIConfig(
     ]
 )
 
+MAIL_URL: str = os.getenv('MAIL_URL')  # type: ignore
+
 DATABASE_URL: str = os.getenv('DATABASE_URL')  # type: ignore
 
 _db_logger = logging.getLogger('sqlalchemy.engine')
@@ -160,6 +162,7 @@ class UserConfig(BaseConfig):
 class BoardConfig(BaseConfig):
     min_create_column_role = UserRole.OWNER
     min_create_task_role = UserRole.MAINTAINER
+    min_create_label_role = UserRole.MEMBER
 
 
 EMAIL_REGISTRATION_SUBJECT = MappingProxyType({
@@ -170,12 +173,12 @@ EMAIL_REGISTRATION_SUBJECT = MappingProxyType({
 EMAIL_REGISTRATION_BODY = MappingProxyType({
     Language.en: (
         'To confirm your registration, visit '
-        'http://localhost:8000/auth/verify-email/{}\n'
+        + MAIL_URL + '/auth/verify-email/{}\n'
         'Use the link within 5 minutes. Do not share it with anyone.'
     ),
     Language.ru: (
         'Для подтверждения регистрации перейдите по ссылке '
-        'http://localhost:8000/auth/verify-email/{}\n'
+        + MAIL_URL + '/auth/verify-email/{}\n'
         'Перейдите по ссылке в течении 5 минут. Никому не передавайте её.'
     )
 })
@@ -188,12 +191,12 @@ EMAIL_CHANGE_PASSWORD_SUBJECT = MappingProxyType({
 EMAIL_CHANGE_PASSWORD_BODY = MappingProxyType({
     Language.en: (
         'To reset your password, visit '
-        'http://localhost:8000/user/change-password/{}\n'
+        + MAIL_URL + '/user/change-password/{}\n'
         'Use the link within 5 minutes.'
     ),
     Language.ru: (
         'Для смены пароля перейдите по ссылке '
-        'http://localhost:8000/user/change-password/{}\n'
+        + MAIL_URL + '/user/change-password/{}\n'
         'Перейдите по ссылке в течении 5 минут.'
     )
 })
