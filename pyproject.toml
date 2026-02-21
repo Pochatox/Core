@@ -93,7 +93,8 @@ ignore = [
     "WPS238",
     "WPS211",
     "WPS336",
-    "WPS615"
+    "WPS615",
+    "WPS402"
 ]
 
 select = ["ANN", "B", "C", "D", "E", "F", "I", "T4", "W"]

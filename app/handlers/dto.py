@@ -76,13 +76,21 @@ class LabelDTO(BaseDTO):
 
 
 class ShortTaskDTO(BaseDTO):
-    assigne: UserPreviewDTO | None
+    assignee: UserPreviewDTO | None
     confirmed_by: UserPreviewDTO | None
     name: str
     description: str
     priority: TaskPriority
     created_at: datetime
     labels: list[LabelShortDTO]
+
+
+class TaskPreviewDTO(BaseDTO):
+    assignee: UserPreviewDTO | None
+    confirmed_by: UserPreviewDTO | None
+    name: str
+    priority: TaskPriority
+    created_at: datetime
 
 
 class ColumnShortDTO(BaseDTO):
@@ -95,6 +103,13 @@ class ColumnShortDTO(BaseDTO):
 class ColumnPreviewDTO(BaseDTO):
     name: str
     position: int
+
+
+class TaskTransitionDTO(BaseDTO):
+    task: TaskPreviewDTO
+    user: UserPreviewDTO
+    column: ColumnPreviewDTO
+    moved_at: datetime
 
 
 class BoardDTO(BaseDTO):
@@ -167,3 +182,7 @@ class CreateLabelDTO(BaseDTO):
 class MoveTaskDTO(BaseDTO):
     task_id: UUID
     move_to: int
+
+
+class ConfirmTaskDTO(BaseDTO):
+    task_id: UUID

@@ -163,6 +163,8 @@ class BoardConfig(BaseConfig):
     min_create_column_role = UserRole.OWNER
     min_create_task_role = UserRole.MAINTAINER
     min_create_label_role = UserRole.MEMBER
+    min_confirm_task_role = UserRole.MAINTAINER
+    min_task_transitions_role = UserRole.MAINTAINER
 
 
 EMAIL_REGISTRATION_SUBJECT = MappingProxyType({

@@ -10,11 +10,12 @@ from sqlalchemy import and_, case, delete, exists, func, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
                                     create_async_engine)
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
 
 from app.db.abc.base import BaseAsyncDB, get_id
 from app.db.abc.models import (BoardProtocol, ColumnProtocol, CommentProtocol,
-                               LabelProtocol, TaskProtocol, UserProtocol)
+                               LabelProtocol, TaskProtocol,
+                               TaskTransitionProtocol, UserProtocol)
 from app.db.enums import TaskPriority, UserRole
 from app.db.exc import (ActivateUserError, BoardNotFoundError, ColumnNotExists,
                         DatabaseError, InvalidColumnPosition,
@@ -540,6 +541,94 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             )
             result = await session.execute(stmt)
         return bool(result.scalar())
+
+    async def confirm_task(self, user_id: UserId, task_id: UUID) -> None:
+        async with self._get_write_session() as session:
+            result = await session.execute(
+                update(Task)
+                .where(Task.id == task_id)
+                .values(
+                    confirmed_by_id=user_id,
+                    column_id=None,
+                )
+            )
+            if result.rowcount == 0:  # type: ignore
+                raise TaskNotExists(f'Task with id {task_id} is not found')
+
+    async def get_board_id_by_task(self, task_id: UUID) -> BoardProtocol:
+        async with self._get_read_session() as session:
+            stmt = select(Task.board_id).where(Task.id == task_id)
+            board_id = (await session.execute(stmt)).scalar_one_or_none()
+            if not board_id:
+                raise TaskNotExists(f'Task with id {task_id} is not found')
+            return board_id
+
+    async def get_confirmed_tasks(self, board_id: UUID) -> list[TaskProtocol]:
+        async with self._get_read_session() as session:
+            result = await session.execute(
+                select(Task)
+                .where(
+                    Task.board_id == board_id,
+                    Task.confirmed_by_id.is_not(None),
+                )
+                .options(
+                    load_only(
+                        Task.name,
+                        Task.description,
+                        Task.priority,
+                        Task.created_at,
+                    ),
+                    selectinload(Task.assignee).load_only(
+                        User.username,
+                        User.avatar,
+                    ),
+                    selectinload(Task.confirmed_by).load_only(
+                        User.username,
+                        User.avatar,
+                    ),
+                    selectinload(Task.labels).load_only(
+                        Label.name,
+                        Label.color,
+                    ),
+                )
+            )
+        return result.scalars().all()
+
+    async def get_task_transitions(
+        self, board_id: UUID
+    ) -> list[TaskTransitionProtocol]:
+        async with self._get_read_session() as session:
+            result = await session.execute(
+                select(TaskTransition)
+                .join(Task, Task.id == TaskTransition.task_id)
+                .where(Task.board_id == board_id)
+                .options(
+                    load_only(TaskTransition.moved_at),
+                    selectinload(TaskTransition.task).load_only(
+                        Task.name,
+                        Task.priority,
+                        Task.created_at,
+                    ).selectinload(Task.assignee).load_only(
+                        User.username,
+                        User.avatar,
+                    ),
+                    selectinload(TaskTransition.task).selectinload(
+                        Task.confirmed_by
+                    ).load_only(
+                        User.username,
+                        User.avatar,
+                    ),
+                    selectinload(TaskTransition.user).load_only(
+                        User.username,
+                        User.avatar,
+                    ),
+                    selectinload(TaskTransition.column).load_only(
+                        Column.name,
+                        Column.position,
+                    ),
+                )
+            )
+            return result.scalars().all()
 
     @asynccontextmanager
     async def _get_read_session(self) -> AsyncGenerator[AsyncSession, None]:
