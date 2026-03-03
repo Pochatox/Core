@@ -36,6 +36,11 @@ class ChangeUserPasswordDTO(BaseDTO):
                           max_length=AuthConfig.password_max_length)
 
 
+class InviteDTO(BaseDTO):
+    invited_id: UserId
+    board_id: UserId
+
+
 class UserDTO(BaseDTO):
     id: UserId
     username: Username

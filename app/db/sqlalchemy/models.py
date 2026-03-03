@@ -85,6 +85,10 @@ class User(ModelWithPassword):
     comments: Mapped[list['Comment']] = relationship(back_populates='author')
     transitions: Mapped[list['TaskTransition']] = relationship(back_populates='user')
     roles: Mapped[list['Role']] = relationship(back_populates='user')
+    tasks_created: Mapped[list['Task']] = relationship(
+        back_populates='created_by',
+        foreign_keys='Task.created_by_id'
+    )
 
 
 class Board(Base):
@@ -141,6 +145,10 @@ class Task(Base):
             "(confirmed_by_id IS NULL) OR (column_id IS NULL)",
             name="chk_confirmed_or_column"
         ),
+        CheckConstraint(
+            "(column_id IS NOT NULL) OR (assignee_id IS NULL)",
+            name="chk_column_assignee_none"
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -151,6 +159,9 @@ class Task(Base):
     )
     column_id: Mapped[UUID | None] = mapped_column(
         SAUUID(as_uuid=True), ForeignKey('columns.id')
+    )
+    created_by_id: Mapped[UUID] = mapped_column(
+        SAUUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True
     )
     assignee_id: Mapped[UUID | None] = mapped_column(
         SAUUID(as_uuid=True), ForeignKey('users.id')
@@ -170,6 +181,10 @@ class Task(Base):
 
     board: Mapped['Board'] = relationship(back_populates='tasks')
     column: Mapped['Column'] = relationship(back_populates='tasks')
+    created_by: Mapped['User'] = relationship(
+        back_populates='tasks_created',
+        foreign_keys=[created_by_id]
+    )
     assignee: Mapped['User'] = relationship(
         back_populates='tasks',
         foreign_keys=[assignee_id]

@@ -1,53 +1,5 @@
 # flake8-in-file-ignores: noqa: WPS432
 
-"""This module defines a collection of error models.
-
-### Error Models
-The error models inherit from the `BaseError` class and represent various types
-    of errors that can occur in the application.
-
-Each error model includes:
-- `status_code`: The HTTP status code associated with the error.
-- `detail`: A brief description of the HTTP status.
-- `extra`: A dictionary containing additional information, including:
-    - `error_code`: A unique identifier for the error.
-    - `message`: A human-readable description of the error.
-
-The error codes are categorized into groups based on their nature, such as:
-- Missing required elements (`miss-X`).
-- Invalid inputs or tokens (`inv-X`).
-- Uniqueness violations (`uniq-X`).
-- Non-existent entities (`exist-X`).
-- Expired tokens (`exp-X`).
-- Other errors (`other-X`).
-
-### Utility Functions
-1. `litestar_raise`:
-     A helper function to raise an `HTTPException` using a specified error model.
-     It allows adding custom headers or additional data to the error's `extra` field.
-     Example usage:
-     ```python
-     raise litestar_raise(error.EmailNotUnique)
-     ```
-2. `litestar_response_spec`:
-     A helper function to generate a `ResponseSpec` for documenting API responses
-        in OpenAPI.
-     It accepts a list of `Example` objects to provide example error responses
-        for specific HTTP status codes.
-     Example usage:
-     ```python
-     @post('/registration', responses={
-             409: litestar_response_spec(examples=[
-                     Example('UsernameNotUnique', value=error.UsernameNotUnique()),
-                     Example('EmailNotUnique', value=error.EmailNotUnique())
-             ])
-     })
-     ```
-
-These utilities streamline error handling and improve API documentation by providing
-    consistent error structures and examples.
-"""
-
 from http import HTTPStatus
 from typing import Any, Mapping
 
@@ -125,6 +77,15 @@ class ChangePasswordTokenInvalid(BaseError):
     extra: dict = {
         'error_code': 'inv-4',
         'message': 'Change password token is invalid'
+    }
+
+
+class InviteTokenInvalid(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'inv-4',
+        'message': 'Invite token is invalid'
     }
 
 ###
@@ -289,6 +250,15 @@ class TokensSubjectNotEqual(BaseError):
     extra: dict = {
         'error_code': 'other-3',
         'message': 'Tokens subject not equal'
+    }
+
+
+class WIPLimit(BaseError):
+    status_code: int = 409
+    detail: str = HTTPStatus(409).phrase
+    extra: dict = {
+        'error_code': 'other-5',
+        'message': 'The WIP limit has been reached in the column'
     }
 
 

@@ -147,7 +147,7 @@ class AuthConfig(BaseConfig):
     password_max_length: int = 74
 
     registration_token_exp: timedelta = timedelta(minutes=5)
-    access_token_exp: timedelta = timedelta(hours=1)
+    access_token_exp: timedelta = timedelta(hours=8)
     refresh_token_exp: timedelta = timedelta(weeks=5)
 
     del_inactive_user_after: timedelta = timedelta(minutes=5)
@@ -156,26 +156,18 @@ class AuthConfig(BaseConfig):
 @dataclass(frozen=True)
 class UserConfig(BaseConfig):
     change_password_token_exp: timedelta = timedelta(minutes=5)
+    invite_token_exp: timedelta = timedelta(days=1)
+
+    min_invite_role: UserRole = UserRole.OWNER
 
 
 @dataclass(frozen=True)
 class BoardConfig(BaseConfig):
     min_create_column_role = UserRole.OWNER
-    min_create_label_role = UserRole.MEMBER
-    min_name_length = 3
-    max_name_length = 24
-    min_column_name = 3
-    max_column_name = 24
-    max_label_name = 12
-
-@dataclass(frozen=True)
-class TaskConfig(BaseConfig):
     min_create_task_role = UserRole.MAINTAINER
+    min_create_label_role = UserRole.MEMBER
     min_confirm_task_role = UserRole.MAINTAINER
     min_task_transitions_role = UserRole.MAINTAINER
-    min_name_length = 3
-    max_name_length = 24
-    max_comment_length = 4096
 
 
 EMAIL_REGISTRATION_SUBJECT = MappingProxyType({
@@ -211,5 +203,25 @@ EMAIL_CHANGE_PASSWORD_BODY = MappingProxyType({
         'Для смены пароля перейдите по ссылке '
         + MAIL_URL + '/user/change-password/{}\n'
         'Перейдите по ссылке в течении 5 минут.'
+    )
+})
+
+EMAIL_INVITE_SUBJECT = MappingProxyType({
+    Language.en: 'Pochatox: Project Invitation',
+    Language.ru: 'Pochatox: Приглашение в проект'
+})
+
+EMAIL_INVITE_BODY = MappingProxyType({
+    Language.en: (
+        'User {first_name} {last_name} (@{username}) invites you to the project '
+        '{board_name} (created at {board_created_at})'
+        + MAIL_URL + '/user/invite{token}\n'
+        'To accept the invitation, follow the link within 24 hours'
+    ),
+    Language.ru: (
+        'Пользователь {first_name} {last_name} (@{username}) приглашает вас в проект'
+        '{board_name} (создан {board_created_at})'
+        + MAIL_URL + '/user/invite{token}\n'
+        'Для принятия приглашения перейдите по ссылке в течении 24 часов'
     )
 })

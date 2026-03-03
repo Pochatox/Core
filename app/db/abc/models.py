@@ -24,7 +24,7 @@ class UserProtocol(Protocol):
     confirmed_tasks: List[TaskProtocol]
     comments: List[CommentProtocol]
     transitions: List[TaskTransitionProtocol]
-    roles: List[RolesProtocol]
+    roles: List[RoleProtocol]
 
 
 class BoardProtocol(Protocol):
@@ -38,7 +38,7 @@ class BoardProtocol(Protocol):
     columns: List[ColumnProtocol]
     tasks: List[TaskProtocol]
     labels: List[LabelProtocol]
-    roles: List[RolesProtocol]
+    roles: List[RoleProtocol]
 
 
 class ColumnProtocol(Protocol):
@@ -59,6 +59,7 @@ class TaskProtocol(Protocol):
     id: UUID
     board_id: UUID
     column_id: UUID
+    created_by_id: UserId
     assignee_id: UUID | None
     confirmed_by_id: UUID | None
     name: str
@@ -108,7 +109,7 @@ class TaskTransitionProtocol(Protocol):
     column: ColumnProtocol
 
 
-class RolesProtocol(Protocol):
+class RoleProtocol(Protocol):
     id: UUID
     user_id: UserId
     board_id: UUID

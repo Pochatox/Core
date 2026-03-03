@@ -9,7 +9,8 @@ import jwt
 from app.tokens.configs import BaseTokenConfig, JWTokenConfig
 from app.tokens.payloads import (AccessTokenPayload, BaseTokenPayload,
                                  ChangePasswordTokenPayload,
-                                 RefreshTokenPayload, RegistrationTokenPayload)
+                                 InviteTokenPayload, RefreshTokenPayload,
+                                 RegistrationTokenPayload)
 from app.types import UserId, Username
 
 
@@ -98,7 +99,7 @@ def create_registration_token(
         sub=sub,
     )
     return token_type(
-        registration_token_payload,
+        registration_token_payload,  # type: ignore
         token_config
     )
 
@@ -112,7 +113,7 @@ def create_access_token(
         sub=sub
     )
     return token_type(
-        access_token_payload,
+        access_token_payload,  # type: ignore
         token_config
     )
 
@@ -126,7 +127,7 @@ def create_refresh_token(
         sub=sub
     )
     return token_type(
-        refresh_token_payload,
+        refresh_token_payload,  # type: ignore
         token_config
     )
 
@@ -140,7 +141,22 @@ def create_change_password_token(
         sub=sub
     )
     return token_type(
-        refresh_token_payload,
+        refresh_token_payload,  # type: ignore
+        token_config
+    )
+
+
+def create_invite_token(
+    token_type: type[TokenType], token_config: BaseTokenConfig, exp: timedelta,
+    invited: UserId, board: UUID
+) -> TokenType:
+    refresh_token_payload = InviteTokenPayload(
+        exp=(datetime.now() + exp).timestamp(),
+        invited=invited,
+        board=board
+    )
+    return token_type(
+        refresh_token_payload,  # type: ignore
         token_config
     )
 
@@ -184,6 +200,17 @@ def verify_change_password_token(
     try:
         return token_type.decode(
             token, token_config, ChangePasswordTokenPayload
+        )
+    except DecodeTokenError as e:
+        raise e
+
+
+def verify_invite_token(
+    token: str, token_type: type[TokenType], token_config: BaseTokenConfig
+) -> TokenType:
+    try:
+        return token_type.decode(
+            token, token_config, InviteTokenPayload
         )
     except DecodeTokenError as e:
         raise e

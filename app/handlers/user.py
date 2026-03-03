@@ -8,15 +8,16 @@ from app import openapi_tags as tags
 from app.config import (EMAIL_CHANGE_PASSWORD_BODY,
                         EMAIL_CHANGE_PASSWORD_SUBJECT, DataBase, Language,
                         Mailer, Token, TokenConfigType, UserConfig)
+from app.db.enums import UserRole
 from app.db.exc import UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
-from app.handlers.dto import ChangeUserPasswordDTO, UserDTO
+from app.handlers.dto import ChangeUserPasswordDTO, InviteDTO, UserDTO
 from app.mailers.base import NonExistentEmail
 from app.tokens.base import (ChangePasswordTokenPayload, DecodeTokenError,
-                             create_change_password_token,
-                             verify_change_password_token)
-from app.tokens.payloads import AccessTokenPayload
+                             create_change_password_token, create_invite_token,
+                             verify_change_password_token, verify_invite_token)
+from app.tokens.payloads import AccessTokenPayload, InviteTokenPayload
 from app.types import UserId, Username
 
 
@@ -144,4 +145,107 @@ class UserController(BaseController[UserConfig]):
         await db.change_user_password(
             id=auth_client.sub,
             new_password=data.password
+        )
+
+    @post('/invite-request', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        403: litestar_response_spec(examples=[
+            Example('UserNotInBoard', value=error.UserNotInBoard()),
+            Example('InsufficientRoleError', value=error.InsufficientRoleError())
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('UserNotExists', value=error.UserNotExists()),
+            Example('BoardNotExists', value=error.BoardNotExists()),
+            Example('EmailNonExistent', value=error.EmailNonExists())
+        ])
+    }, tags=[tags.user_handler])
+    async def invite_request(
+        self, auth_client: AccessTokenPayload, db: DataBase, mailer: Mailer,
+        lang: Language, token_type: type[Token], token_config: TokenConfigType,
+        data: InviteDTO
+    ) -> None:
+        try:
+            user_role = await db.get_user_role(
+                user_id=auth_client.sub,
+                board_id=data.board_id
+            )
+        except UserNotFoundError as e:
+            raise litestar_raise(error.UserNotInBoard) from e
+        if user_role < self.config.min_invite_role:
+            raise litestar_raise(error.InsufficientRoleError)
+
+        try:
+            invited_email = await db.get_user_email(data.invited_id)
+        except UserNotFoundError:
+            raise litestar_raise(error.UserNotExists)
+
+        invite_token = create_invite_token(
+            token_type=token_type,
+            token_config=token_config,
+            exp=self.config.change_password_token_exp,
+            invited=data.invited_id,
+            board=data.board_id
+        )
+
+        user = await db.get_user_names(auth_client.sub)
+        board = await db.get_board_name_created_at(data.board_id)
+        if not board:
+            raise litestar_raise(error.BoardNotExists)
+
+        try:
+            await mailer.send(
+                subject=EMAIL_CHANGE_PASSWORD_SUBJECT[lang],
+                body=EMAIL_CHANGE_PASSWORD_BODY[lang].format(
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    username=user.username,
+                    board_name=board.name,
+                    board_created_at=board.created_at,
+                    token=invite_token
+                ),
+                to_email=invited_email
+            )
+        except NonExistentEmail:
+            raise litestar_raise(error.EmailNonExists)
+
+    @get('invite/{invite_token:str}', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        403: litestar_response_spec(examples=[
+            Example('TokensSubjectNotEqual', value=error.TokensSubjectNotEqual())  # noqa: E501
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('InviteTokenInvalid', value=error.InviteTokenInvalid())  # noqa
+        ])
+    }, tags=[tags.user_handler])
+    async def invite(
+        self, auth_client: AccessTokenPayload, db: DataBase, token_type: type[Token],
+        token_config: TokenConfigType, invite_token: str
+    ) -> None:
+        try:
+            encode_invite_token = verify_invite_token(
+                token=invite_token,
+                token_type=token_type,
+                token_config=token_config
+            )
+            invite_token_payload: InviteTokenPayload = (
+                encode_invite_token.payload
+            )  # type: ignore
+        except DecodeTokenError:
+            raise litestar_raise(error.InviteTokenInvalid)
+
+        if auth_client.sub != invite_token_payload.invited:
+            raise litestar_raise(error.TokensSubjectNotEqual)
+
+        await db.create_role(
+            user_id=auth_client.sub,
+            board_id=invite_token_payload.board,
+            role=UserRole.MEMBER
         )

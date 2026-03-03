@@ -1,4 +1,5 @@
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -35,3 +36,10 @@ class ChangePasswordTokenPayload(BaseTokenPayload):
     exp: float
     sub: UserId
     type: Literal['change-password'] = 'change-password'
+
+
+class InviteTokenPayload(BaseTokenPayload):
+    exp: float
+    invited: UserId
+    board: UUID
+    type: Literal['invite'] = 'invite'
