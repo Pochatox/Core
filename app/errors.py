@@ -167,7 +167,7 @@ class UserNotExists(BaseError):
     status_code: int = 422
     detail: str = HTTPStatus(422).phrase
     extra: dict = {
-        'error_code': 'exist-3',
+        'error_code': 'exist-2',
         'message': 'User not exists'
     }
 
@@ -176,7 +176,7 @@ class BoardNotExists(BaseError):
     status_code: int = 422
     detail: str = HTTPStatus(422).phrase
     extra: dict = {
-        'error_code': 'exist-2',
+        'error_code': 'exist-3',
         'message': 'The board does not exist'
     }
 
@@ -287,7 +287,7 @@ class TokensSubjectNotEqual(BaseError):
     status_code: int = 403
     detail: str = HTTPStatus(403).phrase
     extra: dict = {
-        'error_code': 'other-4',
+        'error_code': 'other-3',
         'message': 'Tokens subject not equal'
     }
 

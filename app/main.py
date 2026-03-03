@@ -18,7 +18,7 @@ from app.db.abc.base import BaseAsyncDB
 from app.db.exc import DatabaseError
 from app.dependencies import auth_client, get_language
 from app.handlers.auth import AuthController
-from app.handlers.board import BoardController
+from app.handlers.boards import BoardController
 from app.handlers.user import UserController
 from app.mailers.base import BaseAsyncMailer, MailerError
 from app.task_managers.base import BaseAsyncTaskManager, Tasks

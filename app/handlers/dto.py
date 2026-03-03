@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.config import AuthConfig
+from app.config import AuthConfig, BoardConfig, TaskConfig
 from app.db.enums import TaskPriority
 from app.types import UserId, Username
 
@@ -60,7 +60,8 @@ class UserPreviewDTO(BaseDTO):
 
 
 class CreateBoardDTO(BaseDTO):
-    name: str
+    name: str = Field(..., min_length=BoardConfig.min_name_length,
+                      max_length=BoardConfig.max_name_length)
     description: Optional[str]
 
 
@@ -130,7 +131,8 @@ class CommentDTO(BaseDTO):
 
 class CreateTaskDTO(BaseDTO):
     board_id: UUID
-    name: str
+    name: str = Field(..., min_length=TaskConfig.min_name_length,
+                max_length=TaskConfig.max_name_length)
     description: str
     priority: TaskPriority
     labels: list[UUID]
@@ -151,7 +153,8 @@ class TaskDTO(BaseDTO):
 
 class CreateColumnDTO(BaseDTO):
     board_id: UUID
-    name: str
+    name: str = Field(..., min_length=BoardConfig.min_column_name,
+                      max_length=BoardConfig.max_column_name)
     description: str | None
     wip: int
     position: int
@@ -170,12 +173,14 @@ class ColumnDTO(BaseDTO):
 
 class CreateCommentDTO(BaseDTO):
     task_id: UUID
-    text: str
+    text: str = Field(..., min_length=1,
+                      max_length=TaskConfig.max_comment_length)
 
 
 class CreateLabelDTO(BaseDTO):
     board_id: UUID
-    name: str
+    name: str = Field(..., min_length=1,
+                      max_length=BoardConfig.max_label_name)
     color: str
 
 
