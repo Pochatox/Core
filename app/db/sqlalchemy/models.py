@@ -13,7 +13,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.db.abc.base import get_id
-from app.db.enums import TaskPriority, UserRole
+from app.db.enums import Avatar, TaskPriority, UserRole
 from app.types import UserId, Username
 
 pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
@@ -68,7 +68,10 @@ class User(ModelWithPassword):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False)
     first_name: Mapped[str] = mapped_column(String(48), nullable=False)
     last_name: Mapped[str] = mapped_column(String(48), nullable=False)
-    avatar: Mapped[str] = mapped_column(String(255), nullable=False)
+    avatar: Mapped[Avatar] = mapped_column(
+        SAEnum(Avatar), name='avatars',
+        nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )

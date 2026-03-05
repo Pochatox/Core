@@ -10,9 +10,9 @@ from app.db.abc.base import str_to_id
 from app.db.exc import ColumnNotExists, TaskNotExists
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
-from app.handlers.dto import (ColumnPreviewDTO,CommentDTO, ConfirmTaskDTO,
-                              CreateCommentDTO, CreateTaskDTO,MoveTaskDTO,TaskDTO,
-                              UserPreviewDTO, UserShortDTO)
+from app.handlers.dto import (ColumnPreviewDTO, CommentDTO, ConfirmTaskDTO,
+                              CreateCommentDTO, CreateTaskDTO, MoveTaskDTO,
+                              TaskDTO, UserPreviewDTO, UserShortDTO)
 from app.tokens.payloads import AccessTokenPayload
 
 
@@ -222,4 +222,3 @@ class TaskController(BaseController[TaskConfig]):
             user_id=auth_client.sub,
             task_id=data.task_id
         )
-

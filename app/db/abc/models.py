@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Protocol
 from uuid import UUID
 
-from app.db.enums import TaskPriority, UserRole
+from app.db.enums import Avatar, TaskPriority, UserRole
 from app.types import UserId, Username
 
 
@@ -16,7 +16,7 @@ class UserProtocol(Protocol):
     is_active: bool
     first_name: str
     last_name: str
-    avatar: str
+    avatar: Avatar
     created_at: datetime
 
     boards: List[BoardProtocol]

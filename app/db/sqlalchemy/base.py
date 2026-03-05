@@ -679,6 +679,30 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 )
         return result
 
+    async def get_users_boards(self, user_id: UserId) -> list[tuple[Board, UserRole]]:
+        async with self._get_read_session() as session:
+            result = await session.execute(
+                select(Board, Role.role)
+                .join(Role, Role.board_id == Board.id)
+                .join(User, User.id == Board.owner_id)
+                .where(Role.user_id == user_id)
+                .options(
+                    load_only(
+                        Board.id,
+                        Board.name,
+                        Board.description,
+                        Board.created_at
+                    ),
+                    selectinload(Board.owner).load_only(
+                        User.username,
+                        User.first_name,
+                        User.last_name,
+                        User.avatar
+                    ),
+                )
+            )
+            return result.all()
+
     @asynccontextmanager
     async def _get_read_session(self) -> AsyncGenerator[AsyncSession, None]:
         def prevent_modifications(*args, **kwargs) -> NoReturn:  # noqa: ANN002

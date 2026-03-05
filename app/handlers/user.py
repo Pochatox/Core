@@ -12,7 +12,8 @@ from app.db.enums import UserRole
 from app.db.exc import UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
-from app.handlers.dto import ChangeUserPasswordDTO, InviteDTO, UserDTO
+from app.handlers.dto import (BoardsDTO, BoardShortDTO, ChangeUserPasswordDTO,
+                              InviteDTO, UserDTO, UserShortDTO)
 from app.mailers.base import NonExistentEmail
 from app.tokens.base import (ChangePasswordTokenPayload, DecodeTokenError,
                              create_change_password_token, create_invite_token,
@@ -248,4 +249,36 @@ class UserController(BaseController[UserConfig]):
             user_id=auth_client.sub,
             board_id=invite_token_payload.board,
             role=UserRole.MEMBER
+        )
+
+    @get('/boards', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ])
+    }, tags=[tags.user_handler])
+    async def get_boards(
+        self, auth_client: AccessTokenPayload, db: DataBase
+    ) -> BoardsDTO:
+        boards_with_roles = await db.get_users_boards(
+            user_id=auth_client.sub,
+        )
+        return BoardsDTO(
+            boards=[
+                BoardShortDTO(
+                    id=board.id,
+                    owner=UserShortDTO(
+                        username=board.owner.username,
+                        first_name=board.owner.first_name,
+                        last_name=board.owner.last_name,
+                        avatar=board.owner.avatar,
+                    ),
+                    name=board.name,
+                    description=board.description,
+                    created_at=board.created_at,
+                    user_role=role,
+                )
+                for board, role in boards_with_roles
+            ]
         )

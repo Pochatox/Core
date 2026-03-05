@@ -164,10 +164,23 @@ class UserConfig(BaseConfig):
 @dataclass(frozen=True)
 class BoardConfig(BaseConfig):
     min_create_column_role = UserRole.OWNER
-    min_create_task_role = UserRole.MAINTAINER
     min_create_label_role = UserRole.MEMBER
+    min_name_length = 3
+    max_name_length = 24
+    min_column_name = 3
+    max_column_name = 24
+    max_label_name = 12
+    max_description_length = 4096
+
+
+@dataclass(frozen=True)
+class TaskConfig(BaseConfig):
+    min_create_task_role = UserRole.MAINTAINER
     min_confirm_task_role = UserRole.MAINTAINER
     min_task_transitions_role = UserRole.MAINTAINER
+    min_name_length = 3
+    max_name_length = 24
+    max_comment_length = 4096
 
 
 EMAIL_REGISTRATION_SUBJECT = MappingProxyType({

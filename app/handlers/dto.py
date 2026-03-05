@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.config import AuthConfig, BoardConfig, TaskConfig
-from app.db.enums import TaskPriority
+from app.db.enums import Avatar, TaskPriority, UserRole
 from app.types import UserId, Username
 
 
@@ -14,14 +14,24 @@ class BaseDTO(BaseModel):
 
 
 class RegistrationDTO(BaseDTO):
-    username: str = Field(..., min_length=AuthConfig.username_min_length,
-                          max_length=AuthConfig.username_max_length)
+    username: str = Field(
+        ...,
+        min_length=AuthConfig.username_min_length,
+        max_length=AuthConfig.username_max_length,
+        pattern=r'^[A-Za-z0-9_]+$',
+        description='Pattern: ^[A-Za-z0-9_]+$'
+    )
     email: str = Field(..., max_length=AuthConfig.email_max_length)
-    password: str = Field(..., min_length=AuthConfig.password_min_length,
-                          max_length=AuthConfig.password_max_length)
+    password: str = Field(
+        ...,
+        min_length=AuthConfig.password_min_length,
+        max_length=AuthConfig.password_max_length,
+        pattern=r'^[A-Za-z0-9_]+$',
+        description='Pattern: ^[A-Za-z0-9_]+$'
+    )
     first_name: str
     last_name: str
-    avatar: str
+    avatar: Avatar
 
 
 class AuthDTO(BaseDTO):
@@ -48,7 +58,7 @@ class UserDTO(BaseDTO):
     is_active: bool
     first_name: str
     last_name: str
-    avatar: str
+    avatar: Avatar
     created_at: datetime
 
 
@@ -56,18 +66,19 @@ class UserShortDTO(BaseDTO):
     username: Username
     first_name: str
     last_name: str
-    avatar: str
+    avatar: Avatar
 
 
 class UserPreviewDTO(BaseDTO):
     username: Username
-    avatar: str
+    avatar: Avatar
 
 
 class CreateBoardDTO(BaseDTO):
     name: str = Field(..., min_length=BoardConfig.min_name_length,
                       max_length=BoardConfig.max_name_length)
-    description: Optional[str]
+    description: Optional[str] = Field(..., min_length=0,
+                                       max_length=BoardConfig.max_description_length)
 
 
 class LabelShortDTO(BaseDTO):
@@ -123,9 +134,22 @@ class BoardDTO(BaseDTO):
     owner: UserShortDTO
     name: str
     description: Optional[str]
-    created_ad: datetime
+    created_at: datetime
     columns: list[ColumnShortDTO]
     labels: list[LabelDTO]
+
+
+class BoardShortDTO(BaseDTO):
+    id: UUID
+    owner: UserShortDTO
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    user_role: UserRole
+
+
+class BoardsDTO(BaseDTO):
+    boards: list[BoardShortDTO]
 
 
 class CommentDTO(BaseDTO):
@@ -137,7 +161,7 @@ class CommentDTO(BaseDTO):
 class CreateTaskDTO(BaseDTO):
     board_id: UUID
     name: str = Field(..., min_length=TaskConfig.min_name_length,
-                max_length=TaskConfig.max_name_length)
+                      max_length=TaskConfig.max_name_length)
     description: str
     priority: TaskPriority
     labels: list[UUID]
