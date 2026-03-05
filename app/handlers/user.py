@@ -1,5 +1,6 @@
 # flake8-in-file-ignores: noqa: B904, WPS110, WPS400
 
+import ast
 from litestar.handlers import get, patch, post
 from litestar.openapi.spec import Example
 
@@ -7,12 +8,12 @@ from app import errors as error
 from app import openapi_tags as tags
 from app.config import (EMAIL_CHANGE_PASSWORD_BODY,
                         EMAIL_CHANGE_PASSWORD_SUBJECT, DataBase, Language,
-                        Mailer, Token, TokenConfigType, UserConfig)
+                        Mailer, Token, TokenConfigType, UserConfig, Cache, CacheKeys)
 from app.db.enums import UserRole
 from app.db.exc import UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
-from app.handlers.dto import (BoardsDTO, BoardShortDTO, ChangeUserPasswordDTO,
+from app.handlers.dto import (BoardShortDTO, ChangeUserPasswordDTO,
                               InviteDTO, UserDTO, UserShortDTO)
 from app.mailers.base import NonExistentEmail
 from app.tokens.base import (ChangePasswordTokenPayload, DecodeTokenError,
@@ -32,22 +33,34 @@ class UserController(BaseController[UserConfig]):
         ])
     }, tags=[tags.user_handler])
     async def get_user_by_id(
-        self, db: DataBase, user_id: UserId
+        self, db: DataBase, user_id: UserId, cache: Cache, cache_keys: CacheKeys
     ) -> UserDTO:
+        user_from_cache = await cache.get(
+            cache_keys.user_by_id.format(user_id)
+        )
+        if user_from_cache:
+            return UserDTO(**ast.literal_eval(user_from_cache))
+
         try:
-            user = await db.get_user(user_id)
-            return UserDTO(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                is_active=user.is_active,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                avatar=user.avatar,
-                created_at=user.created_at
-            )
+            db_user = await db.get_user(user_id)
         except UserNotFoundError:
             raise litestar_raise(error.UserNotExists)
+        user = UserDTO(
+            id=db_user.id,
+            username=db_user.username,
+            email=db_user.email,
+            is_active=db_user.is_active,
+            first_name=db_user.first_name,
+            last_name=db_user.last_name,
+            avatar=db_user.avatar,
+            created_at=db_user.created_at
+        )
+
+        await cache.set(
+            cache_keys.user_by_id.format(user_id), str(user.model_dump())
+        )
+
+        return user
 
     @get('/username/{username:str}', responses={
         422: litestar_response_spec(examples=[
@@ -55,22 +68,34 @@ class UserController(BaseController[UserConfig]):
         ])
     }, tags=[tags.user_handler])
     async def get_user_by_username(
-        self, db: DataBase, username: Username
+        self, db: DataBase, username: Username, cache: Cache, cache_keys: CacheKeys
     ) -> UserDTO:
+        user_from_cache = await cache.get(
+            cache_keys.user_by_username.format(username)
+        )
+        if user_from_cache:
+            return UserDTO(**ast.literal_eval(user_from_cache))
+
         try:
-            user = await db.get_user_by_username(username)
-            return UserDTO(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                is_active=user.is_active,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                avatar=user.avatar,
-                created_at=user.created_at
-            )
+            db_user = await db.get_user_by_username(username)
         except UserNotFoundError:
             raise litestar_raise(error.UserNotExists)
+        user = UserDTO(
+            id=db_user.id,
+            username=db_user.username,
+            email=db_user.email,
+            is_active=db_user.is_active,
+            first_name=db_user.first_name,
+            last_name=db_user.last_name,
+            avatar=db_user.avatar,
+            created_at=db_user.created_at
+        )
+
+        await cache.set(
+            cache_keys.user_by_username.format(username), str(user.model_dump())
+        )
+
+        return user
 
     @post('/change-password-request', responses={
         401: litestar_response_spec(examples=[
@@ -259,26 +284,38 @@ class UserController(BaseController[UserConfig]):
         ])
     }, tags=[tags.user_handler])
     async def get_boards(
-        self, auth_client: AccessTokenPayload, db: DataBase
-    ) -> BoardsDTO:
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys
+    ) -> list[BoardShortDTO]:
+        boards_from_cache = await cache.get(
+            cache_keys.boards.format(auth_client.sub)
+        )
+        if boards_from_cache:
+            return ast.literal_eval(boards_from_cache)
+
         boards_with_roles = await db.get_users_boards(
             user_id=auth_client.sub,
         )
-        return BoardsDTO(
-            boards=[
-                BoardShortDTO(
-                    id=board.id,
-                    owner=UserShortDTO(
-                        username=board.owner.username,
-                        first_name=board.owner.first_name,
-                        last_name=board.owner.last_name,
-                        avatar=board.owner.avatar,
-                    ),
-                    name=board.name,
-                    description=board.description,
-                    created_at=board.created_at,
-                    user_role=role,
-                )
-                for board, role in boards_with_roles
-            ]
+        boards = [
+            BoardShortDTO(
+                id=board.id,
+                owner=UserShortDTO(
+                    username=board.owner.username,
+                    first_name=board.owner.first_name,
+                    last_name=board.owner.last_name,
+                    avatar=board.owner.avatar,
+                ),
+                name=board.name,
+                description=board.description,
+                created_at=board.created_at,
+                user_role=role,
+            )
+            for board, role in boards_with_roles
+        ]
+
+        await cache.set(
+            cache_keys.boards.format(auth_client.sub),
+            str([board.model_dump() for board in boards])
         )
+
+        return boards

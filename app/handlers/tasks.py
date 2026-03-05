@@ -1,11 +1,12 @@
 # flake8-in-file-ignores: noqa: WPS110, WPS400
 
+import ast
 from litestar.handlers import get, patch, post
 from litestar.openapi.spec import Example
 
 from app import errors as error
 from app import openapi_tags as tags
-from app.config import DataBase, TaskConfig
+from app.config import DataBase, TaskConfig, Cache, CacheKeys
 from app.db.abc.base import str_to_id
 from app.db.exc import ColumnNotExists, TaskNotExists
 from app.errors import litestar_raise, litestar_response_spec
@@ -56,7 +57,6 @@ class TaskController(BaseController[TaskConfig]):
         except ColumnNotExists as e:
             raise litestar_raise(error.ColumnNotExists) from e
 
-        column = await db.get_column_name_position(task.column_id)
         return TaskDTO(
             id=task.id,
             board_id=task.board_id,
@@ -64,10 +64,7 @@ class TaskController(BaseController[TaskConfig]):
             description=task.description,
             priority=task.priority,
             created_at=task.created_at,
-            column=ColumnPreviewDTO(
-                name=column.name,
-                position=column.position
-            ),
+            column=None,
             comments=[],
             assignee=None,
             confirmed_by=None
@@ -84,7 +81,8 @@ class TaskController(BaseController[TaskConfig]):
         ])
     }, tags=[tags.task_handler])
     async def get_task(
-        self, auth_client: AccessTokenPayload, db: DataBase, task_id: str
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, task_id: str
     ) -> TaskDTO:
         try:
             valid_task_id = str_to_id(task_id)
@@ -93,34 +91,40 @@ class TaskController(BaseController[TaskConfig]):
         if not await db.is_user_in_board_by_task(auth_client.sub, valid_task_id):
             raise litestar_raise(error.UserNotInBoard)
 
+        task_from_cache = await cache.get(
+            cache_keys.task.format(task_id)
+        )
+        if task_from_cache:
+            return TaskDTO(**ast.literal_eval(task_from_cache))
+
         try:
-            task = await db.get_task(valid_task_id)
+            db_task = await db.get_task(valid_task_id)
         except TaskNotExists as e:
             raise litestar_raise(error.TaskNotExists) from e
 
-        return TaskDTO(
-            id=task.id,
-            board_id=task.board_id,
+        task =  TaskDTO(
+            id=db_task.id,
+            board_id=db_task.board_id,
             column=ColumnPreviewDTO(
-                name=task.column.name,
-                position=task.column.position
-            ) if task.column else None,
+                name=db_task.column.name,
+                position=db_task.column.position
+            ) if db_task.column else None,
             assignee=UserShortDTO(
-                username=task.assignee.username,
-                first_name=task.assignee.first_name,
-                last_name=task.assignee.last_name,
-                avatar=task.assignee.avatar
-            ) if task.assignee else None,
+                username=db_task.assignee.username,
+                first_name=db_task.assignee.first_name,
+                last_name=db_task.assignee.last_name,
+                avatar=db_task.assignee.avatar
+            ) if db_task.assignee else None,
             confirmed_by=UserShortDTO(
-                username=task.confirmed_by.username,
-                first_name=task.confirmed_by.first_name,
-                last_name=task.confirmed_by.last_name,
-                avatar=task.confirmed_by.avatar
-            ) if task.confirmed_by else None,
-            name=task.name,
-            description=task.description,
-            priority=task.priority,
-            created_at=task.created_at,
+                username=db_task.confirmed_by.username,
+                first_name=db_task.confirmed_by.first_name,
+                last_name=db_task.confirmed_by.last_name,
+                avatar=db_task.confirmed_by.avatar
+            ) if db_task.confirmed_by else None,
+            name=db_task.name,
+            description=db_task.description,
+            priority=db_task.priority,
+            created_at=db_task.created_at,
             comments=[
                 CommentDTO(
                     author=UserPreviewDTO(
@@ -129,9 +133,15 @@ class TaskController(BaseController[TaskConfig]):
                     ),
                     text=comment.text,
                     created_at=comment.created_at
-                ) for comment in task.comments
+                ) for comment in db_task.comments
             ]
         )
+
+        await cache.set(
+            cache_keys.task.format(task_id), str(task.model_dump())
+        )
+
+        return task
 
     @post('/comment', responses={
         401: litestar_response_spec(examples=[
@@ -144,7 +154,8 @@ class TaskController(BaseController[TaskConfig]):
         ])
     }, tags=[tags.task_handler])
     async def create_comment(
-        self, auth_client: AccessTokenPayload, db: DataBase, data: CreateCommentDTO
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, data: CreateCommentDTO
     ) -> CommentDTO:
         if not await db.is_user_in_board_by_task(auth_client.sub, data.task_id):
             raise litestar_raise(error.UserNotInBoard)
@@ -154,6 +165,11 @@ class TaskController(BaseController[TaskConfig]):
             text=data.text
         )
         author = await db.get_user_username_avatar(auth_client.sub)
+
+        await cache.del_key(
+            cache_keys.task.format(data.task_id)
+        )
+
         return CommentDTO(
             author=UserPreviewDTO(
                 username=author.username,
@@ -177,7 +193,8 @@ class TaskController(BaseController[TaskConfig]):
         ])
     }, tags=[tags.board_handler])
     async def move_task(
-        self, auth_client: AccessTokenPayload, db: DataBase, data: MoveTaskDTO
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, data: MoveTaskDTO
     ) -> None:
         if not await db.is_users_task(auth_client.sub, data.task_id):
             raise litestar_raise(error.TaskNotAssigneeError)
@@ -189,6 +206,10 @@ class TaskController(BaseController[TaskConfig]):
             )
         except TaskNotExists as e:
             raise litestar_raise(error.TaskNotExists) from e
+
+        await cache.del_key(
+            cache_keys.task.format(data.task_id)
+        )
 
     @patch('/confirm', responses={
         401: litestar_response_spec(examples=[
@@ -204,7 +225,8 @@ class TaskController(BaseController[TaskConfig]):
         ])
     }, tags=[tags.task_handler])
     async def confirm_task(
-        self, auth_client: AccessTokenPayload, db: DataBase, data: ConfirmTaskDTO
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys,  data: ConfirmTaskDTO
     ) -> None:
         try:
             board = await db.get_board_id_by_task(data.task_id)
@@ -221,4 +243,8 @@ class TaskController(BaseController[TaskConfig]):
         await db.confirm_task(
             user_id=auth_client.sub,
             task_id=data.task_id
+        )
+
+        await cache.del_key(
+            cache_keys.task.format(data.task_id)
         )

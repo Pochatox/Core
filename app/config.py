@@ -99,8 +99,14 @@ CacheConfig = RedisConfig(
 
 @dataclass(frozen=True)
 class CacheKeys:
-    team_name: str = 'tn: {}'
-    full_team: str = 'ft: {}'
+    board: str = 'board: {}'
+    boards: str = 'boards: {}'
+    column: str = 'column: {}'
+    confirmed_tasks: str = 'c_tasks: {}'
+    task_transitions: str = 't_trans: {}'
+    task: str = 'task: {}'
+    user_by_id: str = 'user_id: {}'
+    user_by_username: str = 'user_un: {}'
 
 
 Mailer = AsyncSMTPMailer

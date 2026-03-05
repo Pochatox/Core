@@ -467,17 +467,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 raise UserNotFoundError(f'User with id {user_id} is not found')
             return username_avatar
 
-    async def get_column_name_position(self, column_id: UUID) -> ColumnProtocol:
-        async with self._get_read_session() as session:
-            stmt = select(
-                Column.name,
-                Column.position
-            ).where(Column.id == column_id)
-            result = (await session.execute(stmt)).one_or_none()
-            if not result:
-                raise ColumnNotExists(f'Column with id {column_id} is not found')
-            return result
-
     async def create_label(
         self, board_id: UUID, name: str, color: str
     ) -> LabelProtocol:

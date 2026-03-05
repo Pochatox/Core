@@ -8,7 +8,7 @@ from app.types import Seconds
 
 class BaseTTLCacheConfig(BaseModel):
     logger: logging.Logger
-    default_cache_lifetime: Seconds | timedelta = 60
+    default_cache_lifetime: Seconds | timedelta = 60 * 3
 
     class Config:
         arbitrary_types_allowed = True

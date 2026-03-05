@@ -148,10 +148,6 @@ class BoardShortDTO(BaseDTO):
     user_role: UserRole
 
 
-class BoardsDTO(BaseDTO):
-    boards: list[BoardShortDTO]
-
-
 class CommentDTO(BaseDTO):
     author: UserPreviewDTO
     text: str

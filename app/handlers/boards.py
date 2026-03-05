@@ -1,11 +1,13 @@
 # flake8-in-file-ignores: noqa: WPS110, WPS400
 
+import ast
+
 from litestar.handlers import get, post
 from litestar.openapi.spec import Example
 
 from app import errors as error
 from app import openapi_tags as tags
-from app.config import BoardConfig, DataBase
+from app.config import BoardConfig, DataBase, Cache, CacheKeys
 from app.db.abc.base import str_to_id
 from app.db.exc import ColumnNotExists, UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
@@ -69,7 +71,8 @@ class BoardController(BaseController[BoardConfig]):
         ])
     }, tags=[tags.board_handler])
     async def get_board(
-        self, auth_client: AccessTokenPayload, db: DataBase, board_id: str
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, board_id: str
     ) -> BoardDTO:
         try:
             board_valid_id = str_to_id(board_id)
@@ -77,18 +80,25 @@ class BoardController(BaseController[BoardConfig]):
             raise litestar_raise(error.BoardNotExists) from e
         if not await db.is_user_in_board(auth_client.sub, board_valid_id):
             raise litestar_raise(error.UserNotInBoard)
-        board = await db.get_board(board_valid_id)
-        return BoardDTO(
-            id=board.id,
+
+        board_from_cache = await cache.get(
+            cache_keys.board.format(board_id)
+        )
+        if board_from_cache:
+            return BoardDTO(**ast.literal_eval(board_from_cache))
+
+        db_board = await db.get_board(board_valid_id)
+        board = BoardDTO(
+            id=db_board.id,
             owner=UserShortDTO(
-                username=board.owner.username,
-                first_name=board.owner.first_name,
-                last_name=board.owner.last_name,
-                avatar=board.owner.avatar
+                username=db_board.owner.username,
+                first_name=db_board.owner.first_name,
+                last_name=db_board.owner.last_name,
+                avatar=db_board.owner.avatar
             ),
-            name=board.name,
-            description=board.description,
-            created_at=board.created_at,
+            name=db_board.name,
+            description=db_board.description,
+            created_at=db_board.created_at,
             columns=[
                 ColumnShortDTO(
                     name=column.name,
@@ -116,16 +126,20 @@ class BoardController(BaseController[BoardConfig]):
                         for task in column.tasks
                     ]
                 )
-                for column in board.columns
+                for column in db_board.columns
             ],
             labels=[
                 LabelDTO(
                     id=label.id,
                     name=label.name,
                     color=label.color
-                ) for label in board.labels
+                ) for label in db_board.labels
             ]
         )
+        await cache.set(
+            cache_keys.board.format(board_id), str(board.model_dump())
+        )
+        return board
 
     @post('/column', responses={
         401: litestar_response_spec(examples=[
@@ -142,7 +156,8 @@ class BoardController(BaseController[BoardConfig]):
         ])
     }, tags=[tags.board_handler])
     async def create_column(
-        self, auth_client: AccessTokenPayload, db: DataBase, data: CreateColumnDTO
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, data: CreateColumnDTO
     ) -> ColumnDTO:
         try:
             user_role = await db.get_user_role(
@@ -164,6 +179,14 @@ class BoardController(BaseController[BoardConfig]):
             )
         except ColumnNotExists as e:
             raise litestar_raise(error.InvalidColumnPosition) from e
+
+        await cache.del_key(
+            CacheKeys.board.format(data.board_id)
+        )
+        await cache.del_key(
+            CacheKeys.column.format(column.id)
+        )
+
         return ColumnDTO(
             id=column.id,
             board_id=column.board_id,
@@ -189,7 +212,8 @@ class BoardController(BaseController[BoardConfig]):
         ])
     }, tags=[tags.board_handler])
     async def get_column(
-        self, auth_client: AccessTokenPayload, db: DataBase, column_id: str
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, column_id: str
     ) -> ColumnDTO:
         try:
             valid_column_id = str_to_id(column_id)
@@ -198,19 +222,26 @@ class BoardController(BaseController[BoardConfig]):
         if not await db.is_user_in_board_by_column(auth_client.sub, valid_column_id):
             raise litestar_raise(error.UserNotInBoard)
 
+        column_from_cache = await cache.get(
+            cache_keys.column.format(column_id)
+        )
+
+        if column_from_cache:
+            return ColumnDTO(**ast.literal_eval(column_from_cache))
+
         try:
-            column = await db.get_column(valid_column_id)
+            db_column = await db.get_column(valid_column_id)
         except ColumnNotExists as e:
             raise litestar_raise(error.ColumnNotExists) from e
 
-        return ColumnDTO(
-            id=column.id,
-            board_id=column.board_id,
-            name=column.name,
-            description=column.description,
-            position=column.position,
-            wip=column.wip,
-            created_at=column.created_at,
+        column = ColumnDTO(
+            id=db_column.id,
+            board_id=db_column.board_id,
+            name=db_column.name,
+            description=db_column.description,
+            position=db_column.position,
+            wip=db_column.wip,
+            created_at=db_column.created_at,
             tasks=[
                 ShortTaskDTO(
                     assignee=UserPreviewDTO(
@@ -230,9 +261,15 @@ class BoardController(BaseController[BoardConfig]):
                         for label in task.labels
                     ]
                 )
-                for task in column.tasks
+                for task in db_column.tasks
             ]
         )
+
+        await cache.set(
+            cache_keys.column.format(column_id), str(column.model_dump())
+        )
+
+        return column
 
     @post('/label', responses={
         401: litestar_response_spec(examples=[
@@ -279,7 +316,8 @@ class BoardController(BaseController[BoardConfig]):
         ])
     }, tags=[tags.board_handler])
     async def get_confirmed_tasks(
-        self, auth_client: AccessTokenPayload, db: DataBase, board_id: str
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, board_id: str
     ) -> list[ShortTaskDTO]:
         try:
             valid_board_id = str_to_id(board_id)
@@ -287,8 +325,15 @@ class BoardController(BaseController[BoardConfig]):
             raise litestar_raise(error.BoardNotExists) from e
         if not await db.is_user_in_board(auth_client.sub, valid_board_id):
             raise litestar_raise(error.UserNotInBoard)
-        tasks = await db.get_confirmed_tasks(valid_board_id)
-        return [
+
+        tasks_from_cache = await cache.get(
+            cache_keys.confirmed_tasks.format(board_id)
+        )
+        if tasks_from_cache:
+            return ast.literal_eval(tasks_from_cache)
+
+        db_tasks = await db.get_confirmed_tasks(valid_board_id)
+        tasks = [
             ShortTaskDTO(
                 assignee=UserPreviewDTO(
                     username=task.assignee.username,
@@ -306,8 +351,14 @@ class BoardController(BaseController[BoardConfig]):
                     LabelShortDTO(name=label.name, color=label.color)
                     for label in task.labels
                 ]
-            ) for task in tasks
+            ) for task in db_tasks
         ]
+
+        await cache.set(
+            cache_keys.confirmed_tasks.format(board_id), str([task.model_dump() for task in tasks])
+        )
+
+        return tasks
 
     @get('/{board_id:str}/task-transitions', responses={
         401: litestar_response_spec(examples=[
@@ -324,7 +375,8 @@ class BoardController(BaseController[BoardConfig]):
         ])
     }, tags=[tags.board_handler])
     async def get_task_transitions(
-        self, auth_client: AccessTokenPayload, db: DataBase, board_id: str
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, board_id: str
     ) -> list[TaskTransitionDTO]:
         try:
             valid_board_id = str_to_id(board_id)
@@ -341,8 +393,15 @@ class BoardController(BaseController[BoardConfig]):
         if user_role < self.config.min_create_column_role:
             raise litestar_raise(error.InsufficientRoleError)
 
-        task_transitions = await db.get_task_transitions(valid_board_id)
-        return [
+        task_transitions_from_cache = await cache.get(
+            cache_keys.task_transitions.format(board_id)
+        )
+
+        if task_transitions_from_cache:
+            return ast.literal_eval(task_transitions_from_cache)
+
+        db_task_transitions = await db.get_task_transitions(valid_board_id)
+        task_transitions = [
             TaskTransitionDTO(
                 task=TaskPreviewDTO(
                     assignee=UserPreviewDTO(
@@ -367,5 +426,12 @@ class BoardController(BaseController[BoardConfig]):
                 ),
                 moved_at=tt.moved_at,
             )
-            for tt in task_transitions
+            for tt in db_task_transitions
         ]
+
+        await cache.set(
+            cache_keys.task_transitions.format(board_id),
+            str([task_transition.model_dump() for task_transition in task_transitions])
+        )
+
+        return task_transitions
