@@ -1,24 +1,23 @@
 # flake8-in-file-ignores: noqa: WPS110, WPS400
 
-import ast
+
+import json
 
 from litestar.handlers import get, post
 from litestar.openapi.spec import Example
 
 from app import errors as error
 from app import openapi_tags as tags
-from app.config import BoardConfig, DataBase, Cache, CacheKeys
+from app.config import BoardConfig, Cache, CacheKeys, DataBase
 from app.db.abc.base import str_to_id
 from app.db.exc import ColumnNotExists, UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
 from app.handlers.dto import (BoardDTO, ColumnDTO, ColumnPreviewDTO,
-                              ColumnShortDTO,
-                              CreateBoardDTO, CreateColumnDTO,
-                              CreateLabelDTO,
-                              LabelDTO, LabelShortDTO,
-                              ShortTaskDTO, TaskTransitionDTO,
-                              UserPreviewDTO, UserShortDTO, TaskPreviewDTO)
+                              ColumnShortDTO, CreateBoardDTO, CreateColumnDTO,
+                              CreateLabelDTO, LabelDTO, LabelShortDTO,
+                              ShortTaskDTO, TaskPreviewDTO, TaskTransitionDTO,
+                              UserPreviewDTO, UserShortDTO)
 from app.tokens.payloads import AccessTokenPayload
 
 
@@ -85,7 +84,7 @@ class BoardController(BaseController[BoardConfig]):
             cache_keys.board.format(board_id)
         )
         if board_from_cache:
-            return BoardDTO(**ast.literal_eval(board_from_cache))
+            return BoardDTO(**json.loads(board_from_cache))
 
         db_board = await db.get_board(board_valid_id)
         board = BoardDTO(
@@ -137,7 +136,8 @@ class BoardController(BaseController[BoardConfig]):
             ]
         )
         await cache.set(
-            cache_keys.board.format(board_id), str(board.model_dump())
+            cache_keys.board.format(board_id),
+            json.dumps(board.model_dump(), default=str)
         )
         return board
 
@@ -227,7 +227,7 @@ class BoardController(BaseController[BoardConfig]):
         )
 
         if column_from_cache:
-            return ColumnDTO(**ast.literal_eval(column_from_cache))
+            return ColumnDTO(**json.loads(column_from_cache))
 
         try:
             db_column = await db.get_column(valid_column_id)
@@ -266,7 +266,8 @@ class BoardController(BaseController[BoardConfig]):
         )
 
         await cache.set(
-            cache_keys.column.format(column_id), str(column.model_dump())
+            cache_keys.column.format(column_id),
+            json.dumps(column.model_dump(), default=str)
         )
 
         return column
@@ -330,7 +331,7 @@ class BoardController(BaseController[BoardConfig]):
             cache_keys.confirmed_tasks.format(board_id)
         )
         if tasks_from_cache:
-            return ast.literal_eval(tasks_from_cache)
+            return json.loads(tasks_from_cache)
 
         db_tasks = await db.get_confirmed_tasks(valid_board_id)
         tasks = [
@@ -355,7 +356,8 @@ class BoardController(BaseController[BoardConfig]):
         ]
 
         await cache.set(
-            cache_keys.confirmed_tasks.format(board_id), str([task.model_dump() for task in tasks])
+            cache_keys.confirmed_tasks.format(board_id),
+            json.dumps([task.model_dump() for task in tasks], default=str)
         )
 
         return tasks
@@ -398,7 +400,7 @@ class BoardController(BaseController[BoardConfig]):
         )
 
         if task_transitions_from_cache:
-            return ast.literal_eval(task_transitions_from_cache)
+            return json.loads(task_transitions_from_cache)
 
         db_task_transitions = await db.get_task_transitions(valid_board_id)
         task_transitions = [
@@ -431,7 +433,10 @@ class BoardController(BaseController[BoardConfig]):
 
         await cache.set(
             cache_keys.task_transitions.format(board_id),
-            str([task_transition.model_dump() for task_transition in task_transitions])
+            json.dumps(
+                [task_transition.model_dump()
+                 for task_transition in task_transitions], default=str
+            )
         )
 
         return task_transitions

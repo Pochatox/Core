@@ -1,20 +1,22 @@
 # flake8-in-file-ignores: noqa: B904, WPS110, WPS400
 
-import ast
+import json
+
 from litestar.handlers import get, patch, post
 from litestar.openapi.spec import Example
 
 from app import errors as error
 from app import openapi_tags as tags
 from app.config import (EMAIL_CHANGE_PASSWORD_BODY,
-                        EMAIL_CHANGE_PASSWORD_SUBJECT, DataBase, Language,
-                        Mailer, Token, TokenConfigType, UserConfig, Cache, CacheKeys)
+                        EMAIL_CHANGE_PASSWORD_SUBJECT, Cache, CacheKeys,
+                        DataBase, Language, Mailer, Token, TokenConfigType,
+                        UserConfig)
 from app.db.enums import UserRole
 from app.db.exc import UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
-from app.handlers.dto import (BoardShortDTO, ChangeUserPasswordDTO,
-                              InviteDTO, UserDTO, UserShortDTO)
+from app.handlers.dto import (BoardShortDTO, ChangeUserPasswordDTO, InviteDTO,
+                              UserDTO, UserShortDTO)
 from app.mailers.base import NonExistentEmail
 from app.tokens.base import (ChangePasswordTokenPayload, DecodeTokenError,
                              create_change_password_token, create_invite_token,
@@ -39,7 +41,7 @@ class UserController(BaseController[UserConfig]):
             cache_keys.user_by_id.format(user_id)
         )
         if user_from_cache:
-            return UserDTO(**ast.literal_eval(user_from_cache))
+            return UserDTO(**json.loads(user_from_cache))
 
         try:
             db_user = await db.get_user(user_id)
@@ -57,7 +59,8 @@ class UserController(BaseController[UserConfig]):
         )
 
         await cache.set(
-            cache_keys.user_by_id.format(user_id), str(user.model_dump())
+            cache_keys.user_by_id.format(user_id),
+            json.dumps(user.model_dump(), default=str)
         )
 
         return user
@@ -74,7 +77,7 @@ class UserController(BaseController[UserConfig]):
             cache_keys.user_by_username.format(username)
         )
         if user_from_cache:
-            return UserDTO(**ast.literal_eval(user_from_cache))
+            return UserDTO(**json.loads((user_from_cache)))
 
         try:
             db_user = await db.get_user_by_username(username)
@@ -92,7 +95,8 @@ class UserController(BaseController[UserConfig]):
         )
 
         await cache.set(
-            cache_keys.user_by_username.format(username), str(user.model_dump())
+            cache_keys.user_by_username.format(username),
+            json.dumps(user.model_dump(), default=str)
         )
 
         return user
@@ -291,7 +295,7 @@ class UserController(BaseController[UserConfig]):
             cache_keys.boards.format(auth_client.sub)
         )
         if boards_from_cache:
-            return ast.literal_eval(boards_from_cache)
+            return json.loads(boards_from_cache)
 
         boards_with_roles = await db.get_users_boards(
             user_id=auth_client.sub,
@@ -315,7 +319,7 @@ class UserController(BaseController[UserConfig]):
 
         await cache.set(
             cache_keys.boards.format(auth_client.sub),
-            str([board.model_dump() for board in boards])
+            json.dumps([board.model_dump() for board in boards], default=str)
         )
 
         return boards

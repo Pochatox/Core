@@ -1,12 +1,13 @@
 # flake8-in-file-ignores: noqa: WPS110, WPS400
 
-import ast
+import json
+
 from litestar.handlers import get, patch, post
 from litestar.openapi.spec import Example
 
 from app import errors as error
 from app import openapi_tags as tags
-from app.config import DataBase, TaskConfig, Cache, CacheKeys
+from app.config import Cache, CacheKeys, DataBase, TaskConfig
 from app.db.abc.base import str_to_id
 from app.db.exc import ColumnNotExists, TaskNotExists
 from app.errors import litestar_raise, litestar_response_spec
@@ -95,14 +96,14 @@ class TaskController(BaseController[TaskConfig]):
             cache_keys.task.format(task_id)
         )
         if task_from_cache:
-            return TaskDTO(**ast.literal_eval(task_from_cache))
+            return TaskDTO(**json.loads(task_from_cache))
 
         try:
             db_task = await db.get_task(valid_task_id)
         except TaskNotExists as e:
             raise litestar_raise(error.TaskNotExists) from e
 
-        task =  TaskDTO(
+        task = TaskDTO(
             id=db_task.id,
             board_id=db_task.board_id,
             column=ColumnPreviewDTO(
@@ -138,7 +139,8 @@ class TaskController(BaseController[TaskConfig]):
         )
 
         await cache.set(
-            cache_keys.task.format(task_id), str(task.model_dump())
+            cache_keys.task.format(task_id),
+            json.dumps(task.model_dump(), default=str)
         )
 
         return task
@@ -226,7 +228,7 @@ class TaskController(BaseController[TaskConfig]):
     }, tags=[tags.task_handler])
     async def confirm_task(
         self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
-        cache_keys: CacheKeys,  data: ConfirmTaskDTO
+        cache_keys: CacheKeys, data: ConfirmTaskDTO
     ) -> None:
         try:
             board = await db.get_board_id_by_task(data.task_id)
