@@ -181,10 +181,10 @@ class BoardController(BaseController[BoardConfig]):
             raise litestar_raise(error.InvalidColumnPosition) from e
 
         await cache.del_key(
-            CacheKeys.board.format(data.board_id)
+            cache_keys.board.format(data.board_id)
         )
         await cache.del_key(
-            CacheKeys.column.format(column.id)
+            cache_keys.column.format(column.id)
         )
 
         return ColumnDTO(
