@@ -13,8 +13,9 @@ from app.db.exc import ColumnNotExists, TaskNotExists
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
 from app.handlers.dto import (ColumnPreviewDTO, CommentDTO, ConfirmTaskDTO,
-                              CreateCommentDTO, CreateTaskDTO, MoveTaskDTO,
-                              TaskDTO, UserPreviewDTO, UserShortDTO)
+                              CreateCommentDTO, CreateTaskDTO, LabelDTO,
+                              MoveTaskDTO, TaskDTO, UserPreviewDTO,
+                              UserShortDTO)
 from app.tokens.payloads import AccessTokenPayload
 
 
@@ -46,29 +47,62 @@ class TaskController(BaseController[TaskConfig]):
             raise litestar_raise(error.InsufficientRoleError)
 
         try:
-            task = await db.create_task(
+            new_task = await db.create_task(
                 board_id=data.board_id,
                 name=data.name,
                 description=data.description,
                 priority=data.priority,
                 user_id=auth_client.sub,
                 assign_id=None,
-                confirmed_by_id=None
+                confirmed_by_id=None,
+                label_ids=data.labels
             )
         except ColumnNotExists as e:
             raise litestar_raise(error.ColumnNotExists) from e
 
+        task = await db.get_task(new_task.id)
+
         return TaskDTO(
             id=task.id,
             board_id=task.board_id,
+            column=ColumnPreviewDTO(
+                name=task.column.name,
+                position=task.column.position
+            ) if task.column else None,
+            assignee=UserShortDTO(
+                username=task.assignee.username,
+                first_name=task.assignee.first_name,
+                last_name=task.assignee.last_name,
+                avatar=task.assignee.avatar
+            ) if task.assignee else None,
+            confirmed_by=UserShortDTO(
+                username=task.confirmed_by.username,
+                first_name=task.confirmed_by.first_name,
+                last_name=task.confirmed_by.last_name,
+                avatar=task.confirmed_by.avatar
+            ) if task.confirmed_by else None,
             name=task.name,
             description=task.description,
             priority=task.priority,
             created_at=task.created_at,
-            column=None,
-            comments=[],
-            assignee=None,
-            confirmed_by=None
+            comments=[
+                CommentDTO(
+                    author=UserPreviewDTO(
+                        username=comment.author.username,
+                        avatar=comment.author.avatar
+                    ),
+                    text=comment.text,
+                    created_at=comment.created_at
+                ) for comment in task.comments
+            ],
+            labels=[
+                LabelDTO(
+                    id=label.id,
+                    name=label.name,
+                    color=label.color
+                )
+                for label in task.labels
+            ]
         )
 
     @get('/{task_id:str}', responses={
@@ -135,6 +169,14 @@ class TaskController(BaseController[TaskConfig]):
                     text=comment.text,
                     created_at=comment.created_at
                 ) for comment in db_task.comments
+            ],
+            labels=[
+                LabelDTO(
+                    id=label.id,
+                    name=label.name,
+                    color=label.color
+                )
+                for label in db_task.labels
             ]
         )
 

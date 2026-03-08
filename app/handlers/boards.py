@@ -15,7 +15,7 @@ from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
 from app.handlers.dto import (BoardDTO, ColumnDTO, ColumnPreviewDTO,
                               ColumnShortDTO, CreateBoardDTO, CreateColumnDTO,
-                              CreateLabelDTO, LabelDTO, LabelShortDTO,
+                              CreateLabelDTO, LabelDTO,
                               ShortTaskDTO, TaskPreviewDTO, TaskTransitionDTO,
                               UserPreviewDTO, UserShortDTO)
 from app.tokens.payloads import AccessTokenPayload
@@ -118,7 +118,11 @@ class BoardController(BaseController[BoardConfig]):
                             priority=task.priority,
                             created_at=task.created_at,
                             labels=[
-                                LabelShortDTO(name=label.name, color=label.color)
+                                LabelDTO(
+                                    id=label.id,
+                                    name=label.name,
+                                    color=label.color
+                                )
                                 for label in task.labels
                             ]
                         )
@@ -182,9 +186,6 @@ class BoardController(BaseController[BoardConfig]):
 
         await cache.del_key(
             cache_keys.board.format(data.board_id)
-        )
-        await cache.del_key(
-            cache_keys.column.format(column.id)
         )
 
         return ColumnDTO(
@@ -257,7 +258,11 @@ class BoardController(BaseController[BoardConfig]):
                     priority=task.priority,
                     created_at=task.created_at,
                     labels=[
-                        LabelShortDTO(name=label.name, color=label.color)
+                        LabelDTO(
+                            id=label.id,
+                            name=label.name,
+                            color=label.color
+                        )
                         for label in task.labels
                     ]
                 )
@@ -283,7 +288,8 @@ class BoardController(BaseController[BoardConfig]):
         ])
     }, tags=[tags.board_handler])
     async def create_label(
-        self, auth_client: AccessTokenPayload, db: DataBase, data: CreateLabelDTO
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, data: CreateLabelDTO
     ) -> LabelDTO:
         user_role = await db.get_user_role(
             user_id=auth_client.sub,
@@ -297,6 +303,11 @@ class BoardController(BaseController[BoardConfig]):
             name=data.name,
             color=data.color
         )
+
+        await cache.del_key(
+            cache_keys.board.format(data.board_id)
+        )
+
         return LabelDTO(
             id=label.id,
             name=label.name,
@@ -328,7 +339,7 @@ class BoardController(BaseController[BoardConfig]):
             raise litestar_raise(error.UserNotInBoard)
 
         tasks_from_cache = await cache.get(
-            cache_keys.confirmed_tasks.format(board_id)
+            cache_keys.tasks_confirmed.format(board_id)
         )
         if tasks_from_cache:
             return json.loads(tasks_from_cache)
@@ -349,14 +360,18 @@ class BoardController(BaseController[BoardConfig]):
                 priority=task.priority,
                 created_at=task.created_at,
                 labels=[
-                    LabelShortDTO(name=label.name, color=label.color)
+                    LabelDTO(
+                        id=label.id,
+                        name=label.name,
+                        color=label.color
+                    )
                     for label in task.labels
                 ]
             ) for task in db_tasks
         ]
 
         await cache.set(
-            cache_keys.confirmed_tasks.format(board_id),
+            cache_keys.tasks_confirmed.format(board_id),
             json.dumps([task.model_dump() for task in tasks], default=str)
         )
 

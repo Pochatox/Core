@@ -35,7 +35,7 @@ class UserController(BaseController[UserConfig]):
         ])
     }, tags=[tags.user_handler])
     async def get_user_by_id(
-        self, db: DataBase, user_id: UserId, cache: Cache, cache_keys: CacheKeys
+        self, db: DataBase, cache: Cache, cache_keys: CacheKeys, user_id: UserId
     ) -> UserDTO:
         user_from_cache = await cache.get(
             cache_keys.user_by_id.format(user_id)
@@ -71,7 +71,7 @@ class UserController(BaseController[UserConfig]):
         ])
     }, tags=[tags.user_handler])
     async def get_user_by_username(
-        self, db: DataBase, username: Username, cache: Cache, cache_keys: CacheKeys
+        self, db: DataBase, cache: Cache, cache_keys: CacheKeys, username: Username
     ) -> UserDTO:
         user_from_cache = await cache.get(
             cache_keys.user_by_username.format(username)
@@ -96,6 +96,86 @@ class UserController(BaseController[UserConfig]):
 
         await cache.set(
             cache_keys.user_by_username.format(username),
+            json.dumps(user.model_dump(), default=str)
+        )
+
+        return user
+
+    @get('/me', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('UserNotExists', value=error.UserNotExists())
+        ])
+    }, tags=[tags.user_handler])
+    async def get_self_user(
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys
+    ) -> UserDTO:
+        user_from_cache = await cache.get(
+            cache_keys.user_by_id.format(auth_client.sub)
+        )
+        if user_from_cache:
+            return UserDTO(**json.loads(user_from_cache))
+
+        try:
+            db_user = await db.get_user(auth_client.sub)
+        except UserNotFoundError:
+            raise litestar_raise(error.UserNotExists)
+        user = UserDTO(
+            id=db_user.id,
+            username=db_user.username,
+            email=db_user.email,
+            is_active=db_user.is_active,
+            first_name=db_user.first_name,
+            last_name=db_user.last_name,
+            avatar=db_user.avatar,
+            created_at=db_user.created_at
+        )
+
+        await cache.set(
+            cache_keys.user_by_id.format(auth_client.sub),
+            json.dumps(user.model_dump(), default=str)
+        )
+
+        return user
+
+    @get('/me-short', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('UserNotExists', value=error.UserNotExists())
+        ])
+    }, tags=[tags.user_handler])
+    async def get_self_short_user(
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys
+    ) -> UserShortDTO:
+        user_from_cache = await cache.get(
+            cache_keys.user_short.format(auth_client.sub)
+        )
+        if user_from_cache:
+            return UserShortDTO(**json.loads(user_from_cache))
+
+        try:
+            db_user = await db.get_short_user(auth_client.sub)
+        except UserNotFoundError:
+            raise litestar_raise(error.UserNotExists)
+        user = UserShortDTO(
+            username=db_user.username,
+            first_name=db_user.first_name,
+            last_name=db_user.last_name,
+            avatar=db_user.avatar
+        )
+
+        await cache.set(
+            cache_keys.user_short.format(auth_client.sub),
             json.dumps(user.model_dump(), default=str)
         )
 

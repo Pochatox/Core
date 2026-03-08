@@ -81,11 +81,6 @@ class CreateBoardDTO(BaseDTO):
                                        max_length=BoardConfig.max_description_length)
 
 
-class LabelShortDTO(BaseDTO):
-    name: str
-    color: str
-
-
 class LabelDTO(BaseDTO):
     id: UUID
     name: str
@@ -99,7 +94,7 @@ class ShortTaskDTO(BaseDTO):
     description: str
     priority: TaskPriority
     created_at: datetime
-    labels: list[LabelShortDTO]
+    labels: list[LabelDTO]
 
 
 class TaskPreviewDTO(BaseDTO):
@@ -158,7 +153,8 @@ class CreateTaskDTO(BaseDTO):
     board_id: UUID
     name: str = Field(..., min_length=TaskConfig.min_name_length,
                       max_length=TaskConfig.max_name_length)
-    description: str
+    description: str = Field(..., min_length=0,
+                             max_length=TaskConfig.max_description_length)
     priority: TaskPriority
     labels: list[UUID]
 
@@ -174,6 +170,7 @@ class TaskDTO(BaseDTO):
     priority: TaskPriority
     created_at: datetime
     comments: list[CommentDTO]
+    labels: list[LabelDTO]
 
 
 class CreateColumnDTO(BaseDTO):

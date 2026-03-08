@@ -99,14 +99,18 @@ CacheConfig = RedisConfig(
 
 @dataclass(frozen=True)
 class CacheKeys:
-    board: str = 'board: {}'
-    boards: str = 'boards: {}'
-    column: str = 'column: {}'
-    confirmed_tasks: str = 'c_tasks: {}'
-    task_transitions: str = 't_trans: {}'
-    task: str = 'task: {}'
     user_by_id: str = 'user_id: {}'
     user_by_username: str = 'user_un: {}'
+    user_short: str = 'user_sh {}'
+
+    board: str = 'board: {}'
+    boards: str = 'boards: {}'
+
+    column: str = 'column: {}'
+
+    tasks_confirmed: str = 'c_tasks: {}'
+    task_transitions: str = 't_trans: {}'
+    task: str = 'task: {}'
 
 
 Mailer = AsyncSMTPMailer
@@ -187,6 +191,7 @@ class TaskConfig(BaseConfig):
     min_name_length = 3
     max_name_length = 24
     max_comment_length = 4096
+    max_description_length = 4096
 
 
 EMAIL_REGISTRATION_SUBJECT = MappingProxyType({

@@ -24,7 +24,8 @@ from app.db.exc import (ActivateUserError, BoardNotFoundError, ColumnNotExists,
                         UserNotFoundError)
 from app.db.sqlalchemy.config import SQLAlchemyDBConfig
 from app.db.sqlalchemy.models import (Base, Board, Column, Comment, Label,
-                                      Role, Task, TaskTransition, User)
+                                      Role, Task, TaskLabel, TaskTransition,
+                                      User)
 from app.types import Sentinel, UserId, Username
 
 
@@ -81,7 +82,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             user = await session.get(User, id)
             if not user:
                 raise UserNotFoundError(f'User with id {id} is not found')
-            return user  # type: ignore
+        return user
 
     async def get_user_by_username(self, username: Username) -> UserProtocol:
         async with self._get_read_session() as session:
@@ -89,7 +90,22 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             user = (await session.execute(stmt)).scalar_one_or_none()
             if not user:
                 raise UserNotFoundError(f'User with username {username} is not found')
-            return user  # type: ignore
+        return user
+
+    async def get_short_user(self, user_id: UserId) -> UserProtocol:
+        async with self._get_read_session() as session:
+            stmt = select(User).where(User.id == user_id).options(
+                load_only(
+                    User.username,
+                    User.first_name,
+                    User.last_name,
+                    User.avatar
+                )
+            )
+            user = (await session.execute(stmt)).scalar_one_or_none()
+            if not user:
+                raise UserNotFoundError(f'User with id {user_id} is not found')
+        return user
 
     async def get_user_email(self, id: UserId) -> str:
         async with self._get_read_session() as session:
@@ -97,7 +113,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             email = (await session.execute(stmt)).scalar_one_or_none()
             if not email:
                 raise UserNotFoundError(f'User with id {id} is not found')
-            return email
+        return email
 
     async def del_user(self, id: UserId) -> None:
         async with self._get_write_session() as session:
@@ -243,7 +259,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                     selectinload(Board.columns)
                     .selectinload(Column.tasks)
                     .selectinload(Task.labels)
-                    .load_only(Label.name, Label.color)
                 )
             )
             board = (
@@ -251,7 +266,9 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             ).scalars().unique().one_or_none()
         if not board:
             raise BoardNotFoundError(f'invalid id ({board_id})')
-
+        board.columns.sort(key=lambda c: c.position)
+        for column in board.columns:
+            column.tasks.sort(key=lambda t: t.priority, reverse=True)
         return board
 
     async def is_user_in_board(self, user_id: UserId, board_id: UUID) -> bool:
@@ -347,7 +364,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
     async def create_task(
         self, board_id: UUID, assign_id: UUID | None,
         confirmed_by_id: UUID | None, name: str, description: str,
-        priority: TaskPriority, user_id: UserId
+        priority: TaskPriority, user_id: UserId, label_ids: list[UUID]
     ) -> TaskProtocol:
         async with self._get_write_session() as session:
             new_task = Task(
@@ -358,9 +375,13 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 confirmed_by_id=confirmed_by_id,
                 name=name,
                 description=description,
-                priority=priority
+                priority=priority,
+                created_by_id=user_id
             )
             session.add(new_task)
+
+            for label_id in label_ids:
+                session.add(TaskLabel(task=new_task.id, label=label_id))
         return new_task
 
     async def get_user_role(self, user_id: UserId, board_id: UUID) -> UserRole:
@@ -406,7 +427,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                     ),
                     selectinload(Column.tasks)
                     .selectinload(Task.labels)
-                    .load_only(Label.name, Label.color)
                 )
             )
             column = (
@@ -434,10 +454,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                         User.first_name,
                         User.last_name
                     ),
-                    selectinload(Task.labels).load_only(
-                        Label.name,
-                        Label.color
-                    ),
                     selectinload(Task.comments).load_only(
                         Comment.text,
                         Comment.created_at
@@ -448,7 +464,8 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                     selectinload(Task.column).load_only(
                         Column.name,
                         Column.position
-                    )
+                    ),
+                    selectinload(Task.labels)
                 )
             )
             task = (await session.execute(stmt)).scalars().unique().one_or_none()
@@ -559,10 +576,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                         User.username,
                         User.avatar,
                     ),
-                    selectinload(Task.labels).load_only(
-                        Label.name,
-                        Label.color,
-                    ),
+                    selectinload(Task.labels)
                 )
             )
         return result.scalars().all()
