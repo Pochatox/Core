@@ -101,7 +101,9 @@ CacheConfig = RedisConfig(
 class CacheKeys:
     user_by_id: str = 'user_id: {}'
     user_by_username: str = 'user_un: {}'
-    user_short: str = 'user_sh {}'
+    user_short: str = 'user_sh: {}'
+    user_role_in_board: str = 'user_rl: {}'
+    user_role_in_board_by_task: str = 'user_rlbt: {}'
 
     board: str = 'board: {}'
     boards: str = 'boards: {}'
@@ -109,6 +111,7 @@ class CacheKeys:
     column: str = 'column: {}'
 
     tasks_confirmed: str = 'c_tasks: {}'
+    tasks_not_assigned: str = 'na_tasks: {}'
     task_transitions: str = 't_trans: {}'
     task: str = 'task: {}'
 
@@ -175,6 +178,7 @@ class UserConfig(BaseConfig):
 class BoardConfig(BaseConfig):
     min_create_column_role = UserRole.OWNER
     min_create_label_role = UserRole.MEMBER
+    min_task_transitions_role = UserRole.MAINTAINER
     min_name_length = 3
     max_name_length = 24
     min_column_name = 3
@@ -186,8 +190,9 @@ class BoardConfig(BaseConfig):
 @dataclass(frozen=True)
 class TaskConfig(BaseConfig):
     min_create_task_role = UserRole.MAINTAINER
+    min_check_task_role = UserRole.MEMBER
+    min_assignee_task_role = UserRole.MEMBER
     min_confirm_task_role = UserRole.MAINTAINER
-    min_task_transitions_role = UserRole.MAINTAINER
     min_name_length = 3
     max_name_length = 24
     max_comment_length = 4096

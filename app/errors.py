@@ -262,6 +262,24 @@ class WIPLimit(BaseError):
     }
 
 
+class TaskAlredyConfirmed(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'other-6',
+        'message': 'The task has already been confirmed'
+    }
+
+
+class TaskAlredyAssignee(BaseError):
+    status_code: int = 422
+    detail: str = HTTPStatus(422).phrase
+    extra: dict = {
+        'error_code': 'other-6',
+        'message': 'The task has already been assignee'
+    }
+
+
 def litestar_raise(
     error_model: type[BaseError], add_to_extra: Mapping[str, Any] = Sentinel,
     headers: dict[str, str] = Sentinel

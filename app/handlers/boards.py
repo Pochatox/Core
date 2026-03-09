@@ -10,13 +10,14 @@ from app import errors as error
 from app import openapi_tags as tags
 from app.config import BoardConfig, Cache, CacheKeys, DataBase
 from app.db.abc.base import str_to_id
-from app.db.exc import ColumnNotExists, UserNotFoundError
+from app.db.enums import UserRole
+from app.db.exc import ColumnNotExists, TaskNotExists, UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
 from app.handlers.dto import (BoardDTO, ColumnDTO, ColumnPreviewDTO,
                               ColumnShortDTO, CreateBoardDTO, CreateColumnDTO,
-                              CreateLabelDTO, LabelDTO,
-                              ShortTaskDTO, TaskPreviewDTO, TaskTransitionDTO,
+                              CreateLabelDTO, LabelDTO, ShortTaskDTO,
+                              TaskPreviewDTO, TaskTransitionDTO,
                               UserPreviewDTO, UserShortDTO)
 from app.tokens.payloads import AccessTokenPayload
 
@@ -40,10 +41,11 @@ class BoardController(BaseController[BoardConfig]):
             name=data.name,
             description=data.description
         )
-        user = await db.get_user(board.owner_id)
+        user = await db.get_short_user(board.owner_id)
         return BoardDTO(
             id=board.id,
             owner=UserShortDTO(
+                id=user.id,
                 username=user.username,
                 first_name=user.first_name,
                 last_name=user.last_name,
@@ -90,6 +92,7 @@ class BoardController(BaseController[BoardConfig]):
         board = BoardDTO(
             id=db_board.id,
             owner=UserShortDTO(
+                id=db_board.owner.id,
                 username=db_board.owner.username,
                 first_name=db_board.owner.first_name,
                 last_name=db_board.owner.last_name,
@@ -105,11 +108,14 @@ class BoardController(BaseController[BoardConfig]):
                     wip=column.wip,
                     tasks=[
                         ShortTaskDTO(
+                            id=task.id,
                             assignee=UserPreviewDTO(
+                                id=task.assignee.id,
                                 username=task.assignee.username,
                                 avatar=task.assignee.avatar
                             ) if task.assignee else None,
                             confirmed_by=UserPreviewDTO(
+                                id=task.confirmed_by.id,
                                 username=task.confirmed_by.username,
                                 avatar=task.confirmed_by.avatar
                             ) if task.confirmed_by else None,
@@ -245,11 +251,14 @@ class BoardController(BaseController[BoardConfig]):
             created_at=db_column.created_at,
             tasks=[
                 ShortTaskDTO(
+                    id=task.id,
                     assignee=UserPreviewDTO(
+                        id=task.assignee.id,
                         username=task.assignee.username,
                         avatar=task.assignee.avatar
                     ) if task.assignee else None,
                     confirmed_by=UserPreviewDTO(
+                        id=task.confirmed_by.id,
                         username=task.confirmed_by.username,
                         avatar=task.confirmed_by.avatar
                     ) if task.confirmed_by else None,
@@ -347,11 +356,14 @@ class BoardController(BaseController[BoardConfig]):
         db_tasks = await db.get_confirmed_tasks(valid_board_id)
         tasks = [
             ShortTaskDTO(
+                id=task.id,
                 assignee=UserPreviewDTO(
+                    id=task.assignee.id,
                     username=task.assignee.username,
                     avatar=task.assignee.avatar
                 ) if task.assignee else None,
                 confirmed_by=UserPreviewDTO(
+                    id=task.confirmed_by.id,
                     username=task.confirmed_by.username,
                     avatar=task.confirmed_by.avatar
                 ) if task.confirmed_by else None,
@@ -407,7 +419,7 @@ class BoardController(BaseController[BoardConfig]):
             )
         except UserNotFoundError as e:
             raise litestar_raise(error.UserNotInBoard) from e
-        if user_role < self.config.min_create_column_role:
+        if user_role < self.config.min_task_transitions_role:
             raise litestar_raise(error.InsufficientRoleError)
 
         task_transitions_from_cache = await cache.get(
@@ -422,10 +434,12 @@ class BoardController(BaseController[BoardConfig]):
             TaskTransitionDTO(
                 task=TaskPreviewDTO(
                     assignee=UserPreviewDTO(
+                        id=tt.task.assignee.id,
                         username=tt.task.assignee.username,
                         avatar=tt.task.assignee.avatar,
                     ) if tt.task.assignee else None,
                     confirmed_by=UserPreviewDTO(
+                        id=tt.task.confirmed_by.id,
                         username=tt.task.confirmed_by.username,
                         avatar=tt.task.confirmed_by.avatar,
                     ) if tt.task.confirmed_by else None,
@@ -434,6 +448,7 @@ class BoardController(BaseController[BoardConfig]):
                     created_at=tt.task.created_at,
                 ),
                 user=UserPreviewDTO(
+                    id=tt.user.id,
                     username=tt.user.username,
                     avatar=tt.user.avatar,
                 ),
@@ -455,3 +470,155 @@ class BoardController(BaseController[BoardConfig]):
         )
 
         return task_transitions
+
+    @get('/{board_id:str}/not-assigned-tasks', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        403: litestar_response_spec(examples=[
+            Example('UserNotInBoard', value=error.UserNotInBoard()),
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('BoardNotExists', value=error.BoardNotExists())
+        ])
+    }, tags=[tags.board_handler])
+    async def get_not_assigned_tasks(
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, board_id: str
+    ) -> list[ShortTaskDTO]:
+        try:
+            valid_board_id = str_to_id(board_id)
+        except ValueError as e:
+            raise litestar_raise(error.BoardNotExists) from e
+        if not await db.is_user_in_board(auth_client.sub, valid_board_id):
+            raise litestar_raise(error.UserNotInBoard)
+
+        tasks_from_cache = await cache.get(
+            cache_keys.tasks_not_assigned.format(board_id)
+        )
+        if tasks_from_cache:
+            return json.loads(tasks_from_cache)
+
+        db_tasks = await db.get_not_assigned_tasks(valid_board_id)
+        tasks = [
+            ShortTaskDTO(
+                id=task.id,
+                assignee=None,
+                confirmed_by=None,
+                name=task.name,
+                description=task.description,
+                priority=task.priority,
+                created_at=task.created_at,
+                labels=[
+                    LabelDTO(
+                        id=label.id,
+                        name=label.name,
+                        color=label.color
+                    )
+                    for label in task.labels
+                ]
+            ) for task in db_tasks
+        ]
+
+        await cache.set(
+            cache_keys.tasks_not_assigned.format(board_id),
+            json.dumps([task.model_dump() for task in tasks], default=str)
+        )
+
+        return tasks
+
+    @get('/{board_id:str}/role', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        403: litestar_response_spec(examples=[
+            Example('UserNotInBoard', value=error.UserNotInBoard())
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('BoardNotExists', value=error.BoardNotExists())
+        ])
+    }, tags=[tags.board_handler])
+    async def get_role(
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, board_id: str
+    ) -> UserRole:
+        try:
+            valid_board_id = str_to_id(board_id)
+        except ValueError as e:
+            raise litestar_raise(error.BoardNotExists) from e
+
+        user_role_from_cache = await cache.get(
+            cache_keys.user_role_in_board.format(str(auth_client.sub) + board_id)
+        )
+        if user_role_from_cache:
+            return UserRole(int(user_role_from_cache))
+        try:
+            user_role = await db.get_user_role(
+                user_id=auth_client.sub,
+                board_id=valid_board_id
+            )
+        except UserNotFoundError as e:
+            raise litestar_raise(error.UserNotInBoard) from e
+
+        await cache.set(
+            cache_keys.user_role_in_board.format(str(auth_client.sub) + board_id),
+            str(user_role)
+        )
+
+        return user_role
+
+    @get('/{task_id:str}/role-by-task', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        403: litestar_response_spec(examples=[
+            Example('UserNotInBoard', value=error.UserNotInBoard())
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('BoardNotExists', value=error.BoardNotExists())
+        ])
+    }, tags=[tags.board_handler])
+    async def get_role_by_task(
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, task_id: str
+    ) -> UserRole:
+        try:
+            valid_task_id = str_to_id(task_id)
+        except ValueError as e:
+            raise litestar_raise(error.BoardNotExists) from e
+
+        user_role_from_cache = await cache.get(
+            cache_keys.user_role_in_board_by_task.format(
+                str(auth_client.sub) + task_id
+            )
+        )
+        if user_role_from_cache:
+            return UserRole(int(user_role_from_cache))
+
+        try:
+            board_id = await db.get_board_id_by_task(valid_task_id)
+        except TaskNotExists as e:
+            raise litestar_raise(error.TaskNotExists) from e
+
+        try:
+            user_role = await db.get_user_role(
+                user_id=auth_client.sub,
+                board_id=board_id
+            )
+        except UserNotFoundError as e:
+            raise litestar_raise(error.UserNotInBoard) from e
+
+        await cache.set(
+            cache_keys.user_role_in_board_by_task.format(
+                str(auth_client.sub) + task_id
+            ),
+            str(user_role)
+        )
+
+        return user_role

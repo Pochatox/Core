@@ -63,6 +63,7 @@ class UserDTO(BaseDTO):
 
 
 class UserShortDTO(BaseDTO):
+    id: UserId
     username: Username
     first_name: str
     last_name: str
@@ -70,6 +71,7 @@ class UserShortDTO(BaseDTO):
 
 
 class UserPreviewDTO(BaseDTO):
+    id: UserId
     username: Username
     avatar: Avatar
 
@@ -88,6 +90,7 @@ class LabelDTO(BaseDTO):
 
 
 class ShortTaskDTO(BaseDTO):
+    id: UUID
     assignee: UserPreviewDTO | None
     confirmed_by: UserPreviewDTO | None
     name: str
@@ -171,6 +174,7 @@ class TaskDTO(BaseDTO):
     created_at: datetime
     comments: list[CommentDTO]
     labels: list[LabelDTO]
+    is_in_last_column: bool
 
 
 class CreateColumnDTO(BaseDTO):
@@ -212,4 +216,8 @@ class MoveTaskDTO(BaseDTO):
 
 
 class ConfirmTaskDTO(BaseDTO):
+    task_id: UUID
+
+
+class AssigneeTaskDTO(BaseDTO):
     task_id: UUID

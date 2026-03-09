@@ -145,12 +145,13 @@ class Task(Base):
     __tablename__ = 'tasks'
     __table_args__ = (
         CheckConstraint(
-            "(confirmed_by_id IS NULL) OR (column_id IS NULL)",
-            name="chk_confirmed_or_column"
-        ),
-        CheckConstraint(
-            "(column_id IS NOT NULL) OR (assignee_id IS NULL)",
-            name="chk_column_assignee_none"
+            """
+            (assignee_id IS NULL AND column_id IS NULL)
+            OR (assignee_id IS NOT NULL AND confirmed_by_id
+                IS NULL AND column_id IS NOT NULL)
+            OR (confirmed_by_id IS NOT NULL AND column_id IS NULL)
+            """,
+            name="chk_task_column_logic"
         ),
     )
 

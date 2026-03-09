@@ -168,6 +168,7 @@ class UserController(BaseController[UserConfig]):
         except UserNotFoundError:
             raise litestar_raise(error.UserNotExists)
         user = UserShortDTO(
+            id=db_user.id,
             username=db_user.username,
             first_name=db_user.first_name,
             last_name=db_user.last_name,
@@ -384,6 +385,7 @@ class UserController(BaseController[UserConfig]):
             BoardShortDTO(
                 id=board.id,
                 owner=UserShortDTO(
+                    id=board.owner.id,
                     username=board.owner.username,
                     first_name=board.owner.first_name,
                     last_name=board.owner.last_name,

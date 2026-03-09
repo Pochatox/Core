@@ -15,7 +15,7 @@ from app.handlers.controller import BaseController
 from app.handlers.dto import (ColumnPreviewDTO, CommentDTO, ConfirmTaskDTO,
                               CreateCommentDTO, CreateTaskDTO, LabelDTO,
                               MoveTaskDTO, TaskDTO, UserPreviewDTO,
-                              UserShortDTO)
+                              UserShortDTO, AssigneeTaskDTO)
 from app.tokens.payloads import AccessTokenPayload
 
 
@@ -71,11 +71,13 @@ class TaskController(BaseController[TaskConfig]):
             ) if task.column else None,
             assignee=UserShortDTO(
                 username=task.assignee.username,
+                id=task.assignee.id,
                 first_name=task.assignee.first_name,
                 last_name=task.assignee.last_name,
                 avatar=task.assignee.avatar
             ) if task.assignee else None,
             confirmed_by=UserShortDTO(
+                id=task.confirmed_by.id,
                 username=task.confirmed_by.username,
                 first_name=task.confirmed_by.first_name,
                 last_name=task.confirmed_by.last_name,
@@ -88,6 +90,7 @@ class TaskController(BaseController[TaskConfig]):
             comments=[
                 CommentDTO(
                     author=UserPreviewDTO(
+                        id=comment.author.id,
                         username=comment.author.username,
                         avatar=comment.author.avatar
                     ),
@@ -102,7 +105,8 @@ class TaskController(BaseController[TaskConfig]):
                     color=label.color
                 )
                 for label in task.labels
-            ]
+            ],
+            is_in_last_column=False
         )
 
     @get('/{task_id:str}', responses={
@@ -112,7 +116,7 @@ class TaskController(BaseController[TaskConfig]):
             Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
         ]),
         422: litestar_response_spec(examples=[
-            Example('ColumnNotExists', value=error.InvalidColumnPosition())
+            Example('TaskNotExists', value=error.TaskNotExists())
         ])
     }, tags=[tags.task_handler])
     async def get_task(
@@ -122,9 +126,7 @@ class TaskController(BaseController[TaskConfig]):
         try:
             valid_task_id = str_to_id(task_id)
         except ValueError as e:
-            raise litestar_raise(error.ColumnNotExists) from e
-        if not await db.is_user_in_board_by_task(auth_client.sub, valid_task_id):
-            raise litestar_raise(error.UserNotInBoard)
+            raise litestar_raise(error.TaskNotExists) from e
 
         task_from_cache = await cache.get(
             cache_keys.task.format(task_id)
@@ -137,6 +139,18 @@ class TaskController(BaseController[TaskConfig]):
         except TaskNotExists as e:
             raise litestar_raise(error.TaskNotExists) from e
 
+        user_role = await db.get_user_role(
+            user_id=auth_client.sub,
+            board_id=db_task.board_id
+        )
+        if user_role < self.config.min_check_task_role:
+            raise litestar_raise(error.InsufficientRoleError)
+
+        if db_task.confirmed_by:
+            is_in_last_column = False
+        else:
+            is_in_last_column = await db.is_task_in_last_column(db_task.id)
+
         task = TaskDTO(
             id=db_task.id,
             board_id=db_task.board_id,
@@ -145,12 +159,14 @@ class TaskController(BaseController[TaskConfig]):
                 position=db_task.column.position
             ) if db_task.column else None,
             assignee=UserShortDTO(
+                id=db_task.assignee.id,
                 username=db_task.assignee.username,
                 first_name=db_task.assignee.first_name,
                 last_name=db_task.assignee.last_name,
                 avatar=db_task.assignee.avatar
             ) if db_task.assignee else None,
             confirmed_by=UserShortDTO(
+                id=db_task.confirmed_by.id,
                 username=db_task.confirmed_by.username,
                 first_name=db_task.confirmed_by.first_name,
                 last_name=db_task.confirmed_by.last_name,
@@ -163,6 +179,7 @@ class TaskController(BaseController[TaskConfig]):
             comments=[
                 CommentDTO(
                     author=UserPreviewDTO(
+                        id=comment.author.id,
                         username=comment.author.username,
                         avatar=comment.author.avatar
                     ),
@@ -177,7 +194,8 @@ class TaskController(BaseController[TaskConfig]):
                     color=label.color
                 )
                 for label in db_task.labels
-            ]
+            ],
+            is_in_last_column=is_in_last_column
         )
 
         await cache.set(
@@ -216,6 +234,7 @@ class TaskController(BaseController[TaskConfig]):
 
         return CommentDTO(
             author=UserPreviewDTO(
+                id=auth_client.sub,
                 username=author.username,
                 avatar=author.avatar
             ),
@@ -235,7 +254,7 @@ class TaskController(BaseController[TaskConfig]):
         422: litestar_response_spec(examples=[
             Example('TaskNotExists', value=error.TaskNotExists())
         ])
-    }, tags=[tags.board_handler])
+    }, tags=[tags.task_handler])
     async def move_task(
         self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
         cache_keys: CacheKeys, data: MoveTaskDTO
@@ -265,7 +284,8 @@ class TaskController(BaseController[TaskConfig]):
             Example('InsufficientRoleError', value=error.InsufficientRoleError()),
         ]),
         422: litestar_response_spec(examples=[
-            Example('TaskNotExists', value=error.TaskNotExists())
+            Example('TaskNotExists', value=error.TaskNotExists()),
+            Example('TaskAlredyConfirmed', value=error.TaskAlredyConfirmed())
         ])
     }, tags=[tags.task_handler])
     async def confirm_task(
@@ -273,18 +293,78 @@ class TaskController(BaseController[TaskConfig]):
         cache_keys: CacheKeys, data: ConfirmTaskDTO
     ) -> None:
         try:
-            board = await db.get_board_id_by_task(data.task_id)
+            board_id = await db.get_board_id_by_task(data.task_id)
         except TaskNotExists as e:
             raise litestar_raise(error.TaskNotExists) from e
 
         user_role = await db.get_user_role(
             user_id=auth_client.sub,
-            board_id=board.id
+            board_id=board_id
         )
         if user_role < self.config.min_confirm_task_role:
             raise litestar_raise(error.InsufficientRoleError)
 
+        task = await db.get_task(data.task_id)
+        if task.confirmed_by:
+            raise litestar_raise(error.TaskAlredyConfirmed)
+
         await db.confirm_task(
+            user_id=auth_client.sub,
+            task_id=data.task_id
+        )
+
+        await cache.del_key(
+            cache_keys.task.format(data.task_id)
+        )
+
+    @patch('/assignee', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        403: litestar_response_spec(examples=[
+            Example('InsufficientRoleError', value=error.InsufficientRoleError()),
+        ]),
+        409: litestar_response_spec(examples=[
+            Example('WIPLimit', value=error.WIPLimit()),
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('TaskNotExists', value=error.TaskNotExists()),
+            Example('ColumnNotExists', value=error.ColumnNotExists()),
+            Example('TaskAlredyAssignee', value=error.TaskAlredyAssignee())
+        ])
+    }, tags=[tags.task_handler])
+    async def assignee_task(
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, data: AssigneeTaskDTO
+    ) -> None:
+        try:
+            board_id = await db.get_board_id_by_task(data.task_id)
+        except TaskNotExists as e:
+            raise litestar_raise(error.TaskNotExists) from e
+
+        user_role = await db.get_user_role(
+            user_id=auth_client.sub,
+            board_id=board_id
+        )
+        if user_role < self.config.min_assignee_task_role:
+            raise litestar_raise(error.InsufficientRoleError)
+
+        task = await db.get_task(data.task_id)
+        if task.assignee:
+            raise litestar_raise(error.TaskAlredyAssignee)
+
+        try:
+            if not await db.is_move_to_column_allowed_by_task(
+                task_id=task.id,
+                column_position=1
+            ):
+                raise litestar_raise(error.WIPLimit)
+        except ColumnNotExists as e:
+            raise litestar_raise(error.ColumnNotExists) from e
+
+        await db.assigne_task(
             user_id=auth_client.sub,
             task_id=data.task_id
         )
