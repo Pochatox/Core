@@ -148,7 +148,7 @@ def create_change_password_token(
 
 def create_invite_token(
     token_type: type[TokenType], token_config: BaseTokenConfig, exp: timedelta,
-    invited: UserId, board: UUID
+    invited: str, board: UUID
 ) -> TokenType:
     refresh_token_payload = InviteTokenPayload(
         exp=(datetime.now() + exp).timestamp(),

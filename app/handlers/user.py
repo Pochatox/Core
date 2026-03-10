@@ -290,7 +290,7 @@ class UserController(BaseController[UserConfig]):
             raise litestar_raise(error.InsufficientRoleError)
 
         try:
-            invited_email = await db.get_user_email(data.invited_id)
+            invited_email = await db.get_user_email_by_username(data.invited_username)
         except UserNotFoundError:
             raise litestar_raise(error.UserNotExists)
 
@@ -298,7 +298,7 @@ class UserController(BaseController[UserConfig]):
             token_type=token_type,
             token_config=token_config,
             exp=self.config.change_password_token_exp,
-            invited=data.invited_id,
+            invited=data.invited_username,
             board=data.board_id
         )
 
@@ -352,11 +352,15 @@ class UserController(BaseController[UserConfig]):
         except DecodeTokenError:
             raise litestar_raise(error.InviteTokenInvalid)
 
-        if auth_client.sub != invite_token_payload.invited:
+        user_id = await db.get_user_username_by_id(
+            invite_token_payload.invited
+        )
+
+        if auth_client.sub != user_id:
             raise litestar_raise(error.TokensSubjectNotEqual)
 
         await db.create_role(
-            user_id=auth_client.sub,
+            user_id=user_id,
             board_id=invite_token_payload.board,
             role=UserRole.MEMBER
         )

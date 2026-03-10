@@ -47,7 +47,7 @@ class ChangeUserPasswordDTO(BaseDTO):
 
 
 class InviteDTO(BaseDTO):
-    invited_id: UserId
+    invited_username: str
     board_id: UserId
 
 
@@ -60,6 +60,18 @@ class UserDTO(BaseDTO):
     last_name: str
     avatar: Avatar
     created_at: datetime
+
+
+class UserWithRoleDTO(BaseDTO):
+    id: UserId
+    username: Username
+    email: str
+    is_active: bool
+    first_name: str
+    last_name: str
+    avatar: Avatar
+    created_at: datetime
+    role: UserRole
 
 
 class UserShortDTO(BaseDTO):
@@ -221,3 +233,7 @@ class ConfirmTaskDTO(BaseDTO):
 
 class AssigneeTaskDTO(BaseDTO):
     task_id: UUID
+
+
+class CreateMaintainerDTO(BaseDTO):
+    maintainer_id: UserId

@@ -104,6 +104,7 @@ class CacheKeys:
     user_short: str = 'user_sh: {}'
     user_role_in_board: str = 'user_rl: {}'
     user_role_in_board_by_task: str = 'user_rlbt: {}'
+    users_list: str = 'users_lt: {}'
 
     board: str = 'board: {}'
     boards: str = 'boards: {}'
@@ -179,6 +180,7 @@ class BoardConfig(BaseConfig):
     min_create_column_role = UserRole.OWNER
     min_create_label_role = UserRole.MEMBER
     min_task_transitions_role = UserRole.MAINTAINER
+    min_create_maintainer_role = UserRole.OWNER
     min_name_length = 3
     max_name_length = 24
     min_column_name = 3

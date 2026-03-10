@@ -108,12 +108,20 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 raise UserNotFoundError(f'User with id {user_id} is not found')
         return user
 
-    async def get_user_email(self, id: UserId) -> str:
+    async def get_user_email_by_username(self, username: str) -> str:
         async with self._get_read_session() as session:
-            stmt = select(User.email).where(User.id == id)
+            stmt = select(User.email).where(User.username == username)
             email = (await session.execute(stmt)).scalar_one_or_none()
             if not email:
-                raise UserNotFoundError(f'User with id {id} is not found')
+                raise UserNotFoundError(f'User with username {username} is not found')
+        return email
+
+    async def get_user_email(self, user_id: UserId) -> str:
+        async with self._get_read_session() as session:
+            stmt = select(User.email).where(User.id == user_id)
+            email = (await session.execute(stmt)).scalar_one_or_none()
+            if not email:
+                raise UserNotFoundError(f'User with id {user_id} is not found')
         return email
 
     async def del_user(self, id: UserId) -> None:
@@ -740,7 +748,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             )
         return result
 
-    async def get_users_boards(self, user_id: UserId) -> list[tuple[Board, UserRole]]:
+    async def get_users_boards(self, user_id: UserId) -> list[tuple[BoardProtocol, UserRole]]:
         async with self._get_read_session() as session:
             result = await session.execute(
                 select(Board, Role.role)
@@ -780,6 +788,17 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             return False
         column_position, max_position = row
         return column_position == max_position
+
+    async def create_maintainer(self, board_id: UUID, user_id: UserId) -> None:
+        ...
+
+    async def get_user_username_by_id(self, username: str) -> UserId:
+        ...
+
+    async def get_users_list(
+            self, board_id: UUID
+        ) -> list[tuple[UserProtocol, UserRole]]:
+        ...
 
     @asynccontextmanager
     async def _get_read_session(self) -> AsyncGenerator[AsyncSession, None]:

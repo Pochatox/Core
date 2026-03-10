@@ -40,6 +40,6 @@ class ChangePasswordTokenPayload(BaseTokenPayload):
 
 class InviteTokenPayload(BaseTokenPayload):
     exp: float
-    invited: UserId
+    invited: str
     board: UUID
     type: Literal['invite'] = 'invite'
