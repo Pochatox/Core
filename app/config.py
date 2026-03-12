@@ -109,8 +109,6 @@ class CacheKeys:
     board: str = 'board: {}'
     boards: str = 'boards: {}'
 
-    column: str = 'column: {}'
-
     tasks_confirmed: str = 'c_tasks: {}'
     tasks_not_assigned: str = 'na_tasks: {}'
     task_transitions: str = 't_trans: {}'

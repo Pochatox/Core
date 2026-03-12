@@ -1,4 +1,4 @@
-# flake8-in-file-ignores: noqa: WPS110, WPS204, WPS203, WPS615, WPS221
+# flake8-in-file-ignores: noqa: WPS110, WPS204, WPS203, WPS615, WPS221, WPS432
 # pyright: reportReturnType=false
 
 from contextlib import asynccontextmanager
@@ -216,6 +216,43 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             session.add(role)
         return new_board
 
+    async def get_short_board(self, board_id: UUID) -> BoardProtocol:
+        async with self._get_read_session() as session:
+            stmt = select(Board).where(Board.id == board_id).options(
+                load_only(
+                    Board.id,
+                    Board.name,
+                    Board.description,
+                    Board.created_at
+                ),
+                selectinload(Board.owner).load_only(
+                    User.id,
+                    User.username,
+                    User.avatar,
+                    User.first_name,
+                    User.last_name
+                )
+            )
+            board = (
+                await session.execute(stmt)
+            ).scalars().unique().one_or_none()
+        if not board:
+            raise BoardNotFoundError(f'invalid id ({board_id})')
+        return board
+
+    async def get_board_name(self, board_id: UUID) -> str:
+        async with self._get_read_session() as session:
+            stmt = select(Board).where(Board.id == board_id).options(
+                load_only(
+                    Board.id,
+                    Board.name
+                )
+            )
+            board = (await session.execute(stmt)).scalars().unique().one_or_none()
+        if not board:
+            raise BoardNotFoundError(f'invalid id ({board_id})')
+        return board.name
+
     async def get_board(self, board_id: UUID) -> BoardProtocol:
         async with self._get_read_session() as session:
             stmt = (
@@ -340,6 +377,14 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
 
             if position < 1 or position > max_position + 1:
                 raise InvalidColumnPosition()
+
+            await session.execute(
+                update(Column)
+                .where(Column.board_id == board_id, Column.position >= position)
+                .values(position=Column.position + 1000)
+            )
+            await session.flush()
+
             new_column = Column(
                 id=get_id(),
                 board_id=board_id,
@@ -348,15 +393,15 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 position=position,
                 wip=wip
             )
+            session.add(new_column)
+            await session.flush()
+
             await session.execute(
                 update(Column)
-                .where(
-                    Column.board_id == board_id,
-                    Column.position >= position
-                )
-                .values(position=Column.position + 1)
+                .where(Column.board_id == board_id, Column.position >= position + 1000)
+                .values(position=Column.position - 999)
             )
-            session.add(new_column)
+
         return new_column
 
     async def create_comment(
@@ -516,24 +561,28 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
     async def task_transit(
         self, task_id: UUID, user_id: UserId, move_to: int
     ) -> None:
-        async with self._get_read_session() as session:
+        async with self._get_write_session() as session:
             stmt = (
-                select(Column.id)
+                select(Column)
                 .join(Task, Task.board_id == Column.board_id)
                 .where(Task.id == task_id, Column.position == move_to)
             )
-            column_id = (await session.execute(stmt)).scalars().first()
-            if not column_id:
-                raise TaskNotExists('Task or column not exists')
-        async with self._get_write_session() as session:
+            column = (await session.execute(stmt)).scalars().first()
+            if not column:
+                raise ColumnNotExists('Column not exists')
+
+            task = await session.get(Task, task_id)
+            if not task:
+                raise TaskNotExists('Task not exists')
+            task.column_id = column.id
+
             task_transition = TaskTransition(
                 id=get_id(),
                 task_id=task_id,
                 user_id=user_id,
-                column=column_id
+                column_id=column.id
             )
             session.add(task_transition)
-        return task_transition
 
     async def is_users_task(self, user_id: UserId, task_id: UUID) -> bool:
         async with self._get_read_session() as session:
@@ -628,6 +677,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 .where(
                     Task.board_id == board_id,
                     Task.assignee_id.is_(None),
+                    Task.confirmed_by_id.is_(None)
                 )
                 .options(
                     load_only(
@@ -748,7 +798,9 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             )
         return result
 
-    async def get_users_boards(self, user_id: UserId) -> list[tuple[BoardProtocol, UserRole]]:
+    async def get_users_boards(
+        self, user_id: UserId
+    ) -> list[tuple[BoardProtocol, UserRole]]:
         async with self._get_read_session() as session:
             result = await session.execute(
                 select(Board, Role.role)
@@ -773,32 +825,62 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             )
         return result.all()
 
-    async def is_task_in_last_column(self, task_id: UUID) -> bool:
+    async def is_task_in_last_column(self, task_id: UUID, board_id: UUID) -> bool:
         async with self._get_read_session() as session:
-            result = await session.execute(
-                select(
-                    Column.position,
-                    func.max(Column.position).over(partition_by=Column.board_id)
-                )
+            task_pos = await session.scalar(
+                select(Column.position)
                 .join(Task, Task.column_id == Column.id)
                 .where(Task.id == task_id)
             )
-            row = result.one_or_none()
-        if not row:
-            return False
-        column_position, max_position = row
-        return column_position == max_position
+            if task_pos is None:
+                return False
+
+            max_pos = await session.scalar(
+                select(func.max(Column.position))
+                .where(Column.board_id == board_id)
+            )
+        return task_pos == max_pos
 
     async def create_maintainer(self, board_id: UUID, user_id: UserId) -> None:
-        ...
+        async with self._get_write_session() as session:
+            role = Role(
+                id=get_id(),
+                user_id=user_id,
+                board_id=board_id,
+                role=UserRole.MAINTAINER
+            )
+            session.add(role)
 
-    async def get_user_username_by_id(self, username: str) -> UserId:
-        ...
+    async def get_user_id_by_username(self, username: str) -> UserId:
+        async with self._get_read_session() as session:
+            stmt = select(User.id).where(User.username == username)
+            result = (await session.execute(stmt)).scalar_one_or_none()
+            if not result:
+                raise UserNotFoundError(f'User with username {username} is not found')
+            return result
 
     async def get_users_list(
-            self, board_id: UUID
-        ) -> list[tuple[UserProtocol, UserRole]]:
-        ...
+        self, board_id: UUID
+    ) -> list[tuple[UserProtocol, UserRole]]:
+        async with self._get_read_session() as session:
+            result = await session.execute(
+                select(User, Role.role)
+                .join(Role, Role.user_id == User.id)
+                .where(Role.board_id == board_id)
+                .options(
+                    load_only(
+                        User.id,
+                        User.username,
+                        User.email,
+                        User.is_active,
+                        User.first_name,
+                        User.last_name,
+                        User.avatar,
+                        User.created_at
+                    )
+                )
+            )
+        return result.tuples().all()
 
     @asynccontextmanager
     async def _get_read_session(self) -> AsyncGenerator[AsyncSession, None]:

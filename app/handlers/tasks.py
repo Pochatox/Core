@@ -149,7 +149,9 @@ class TaskController(BaseController[TaskConfig]):
         if db_task.confirmed_by:
             is_in_last_column = False
         else:
-            is_in_last_column = await db.is_task_in_last_column(db_task.id)
+            is_in_last_column = await db.is_task_in_last_column(
+                db_task.id, db_task.board_id
+            )
 
         task = TaskDTO(
             id=db_task.id,
@@ -251,8 +253,12 @@ class TaskController(BaseController[TaskConfig]):
         403: litestar_response_spec(examples=[
             Example('TaskNotAssigneeError', value=error.TaskNotAssigneeError()),
         ]),
+        409: litestar_response_spec(examples=[
+            Example('WIPLimit', value=error.WIPLimit()),
+        ]),
         422: litestar_response_spec(examples=[
-            Example('TaskNotExists', value=error.TaskNotExists())
+            Example('TaskNotExists', value=error.TaskNotExists()),
+            Example('ColumnNotExists', value=error.ColumnNotExists())
         ])
     }, tags=[tags.task_handler])
     async def move_task(
@@ -261,6 +267,16 @@ class TaskController(BaseController[TaskConfig]):
     ) -> None:
         if not await db.is_users_task(auth_client.sub, data.task_id):
             raise litestar_raise(error.TaskNotAssigneeError)
+
+        try:
+            if not await db.is_move_to_column_allowed_by_task(
+                task_id=data.task_id,
+                column_position=data.move_to
+            ):
+                raise litestar_raise(error.WIPLimit)
+        except ColumnNotExists as e:
+            raise litestar_raise(error.ColumnNotExists) from e
+
         try:
             await db.task_transit(
                 task_id=data.task_id,
@@ -269,9 +285,17 @@ class TaskController(BaseController[TaskConfig]):
             )
         except TaskNotExists as e:
             raise litestar_raise(error.TaskNotExists) from e
+        except ColumnNotExists as e:
+            raise litestar_raise(error.ColumnNotExists) from e
+
+        board_id = await db.get_board_id_by_task(data.task_id)
 
         await cache.del_key(
             cache_keys.task.format(data.task_id)
+        )
+
+        await cache.del_key(
+            cache_keys.board.format(board_id)
         )
 
     @patch('/confirm', responses={
@@ -315,6 +339,14 @@ class TaskController(BaseController[TaskConfig]):
 
         await cache.del_key(
             cache_keys.task.format(data.task_id)
+        )
+
+        await cache.del_key(
+            cache_keys.tasks_confirmed.format(str(board_id))
+        )
+
+        await cache.del_key(
+            cache_keys.board.format(str(board_id))
         )
 
     @patch('/assignee', responses={
@@ -371,4 +403,12 @@ class TaskController(BaseController[TaskConfig]):
 
         await cache.del_key(
             cache_keys.task.format(data.task_id)
+        )
+
+        await cache.del_key(
+            cache_keys.tasks_not_assigned.format(str(board_id))
+        )
+
+        await cache.del_key(
+            cache_keys.board.format(str(board_id))
         )

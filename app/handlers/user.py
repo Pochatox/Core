@@ -352,7 +352,7 @@ class UserController(BaseController[UserConfig]):
         except DecodeTokenError:
             raise litestar_raise(error.InviteTokenInvalid)
 
-        user_id = await db.get_user_username_by_id(
+        user_id = await db.get_user_id_by_username(
             invite_token_payload.invited
         )
 

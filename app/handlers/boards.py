@@ -11,14 +11,17 @@ from app import openapi_tags as tags
 from app.config import BoardConfig, Cache, CacheKeys, DataBase
 from app.db.abc.base import str_to_id
 from app.db.enums import UserRole
-from app.db.exc import ColumnNotExists, TaskNotExists, UserNotFoundError, UserNotInBoard, UserAlreadyMaintainer
+from app.db.exc import (ColumnNotExists, TaskNotExists, UserAlreadyMaintainer,
+                        UserNotFoundError, UserNotInBoard)
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
-from app.handlers.dto import (BoardDTO, ColumnDTO, ColumnPreviewDTO,
-                              ColumnShortDTO, CreateBoardDTO, CreateColumnDTO,
-                              CreateLabelDTO, CreateMaintainerDTO, LabelDTO, ShortTaskDTO,
+from app.handlers.dto import (BoardDTO, BoardPreviewtDTO, ColumnDTO,
+                              ColumnPreviewDTO, ColumnShortDTO, CreateBoardDTO,
+                              CreateColumnDTO, CreateLabelDTO,
+                              CreateMaintainerDTO, LabelDTO, ShortTaskDTO,
                               TaskPreviewDTO, TaskTransitionDTO,
-                              UserPreviewDTO, UserShortDTO, UserWithRoleDTO)
+                              UserPreviewDTO, UserShortDTO, UsersListDTO,
+                              UserWithRoleDTO)
 from app.tokens.payloads import AccessTokenPayload
 
 
@@ -103,6 +106,7 @@ class BoardController(BaseController[BoardConfig]):
             created_at=db_board.created_at,
             columns=[
                 ColumnShortDTO(
+                    id=column.id,
                     name=column.name,
                     position=column.position,
                     wip=column.wip,
@@ -219,8 +223,7 @@ class BoardController(BaseController[BoardConfig]):
         ])
     }, tags=[tags.board_handler])
     async def get_column(
-        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
-        cache_keys: CacheKeys, column_id: str
+        self, auth_client: AccessTokenPayload, db: DataBase, column_id: str
     ) -> ColumnDTO:
         try:
             valid_column_id = str_to_id(column_id)
@@ -229,19 +232,12 @@ class BoardController(BaseController[BoardConfig]):
         if not await db.is_user_in_board_by_column(auth_client.sub, valid_column_id):
             raise litestar_raise(error.UserNotInBoard)
 
-        column_from_cache = await cache.get(
-            cache_keys.column.format(column_id)
-        )
-
-        if column_from_cache:
-            return ColumnDTO(**json.loads(column_from_cache))
-
         try:
             db_column = await db.get_column(valid_column_id)
         except ColumnNotExists as e:
             raise litestar_raise(error.ColumnNotExists) from e
 
-        column = ColumnDTO(
+        return ColumnDTO(
             id=db_column.id,
             board_id=db_column.board_id,
             name=db_column.name,
@@ -278,13 +274,6 @@ class BoardController(BaseController[BoardConfig]):
                 for task in db_column.tasks
             ]
         )
-
-        await cache.set(
-            cache_keys.column.format(column_id),
-            json.dumps(column.model_dump(), default=str)
-        )
-
-        return column
 
     @post('/label', responses={
         401: litestar_response_spec(examples=[
@@ -664,16 +653,16 @@ class BoardController(BaseController[BoardConfig]):
                 board_id=valid_board_id,
                 user_id=data.maintainer_id
             )
-        except UserNotInBoard:
-            raise litestar_raise(error.UserNotInBoard)
-        except UserAlreadyMaintainer:
-            raise litestar_raise(error.UserAlreadyMaintainer)
+        except UserNotInBoard as e:
+            raise litestar_raise(error.UserNotInBoard) from e
+        except UserAlreadyMaintainer as e:
+            raise litestar_raise(error.UserAlreadyMaintainer) from e
 
         await cache.del_key(
-           cache_keys.users_list.format(board_id)
+            cache_keys.users_list.format(board_id)
         )
 
-    @get('/{board_id:str}/users_list', responses={
+    @get('/{board_id:str}/users-list', responses={
         401: litestar_response_spec(examples=[
             Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
             Example('AccessTokenExpired', value=error.AccessTokenExpired()),
@@ -689,12 +678,12 @@ class BoardController(BaseController[BoardConfig]):
     async def get_users_list(
         self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
         cache_keys: CacheKeys, board_id: str
-    ) -> list[UserWithRoleDTO]:
+    ) -> UsersListDTO:
         try:
-            board_valid_id = str_to_id(board_id)
+            valid_board_id = str_to_id(board_id)
         except ValueError as e:
             raise litestar_raise(error.BoardNotExists) from e
-        if not await db.is_user_in_board(auth_client.sub, board_valid_id):
+        if not await db.is_user_in_board(auth_client.sub, valid_board_id):
             raise litestar_raise(error.UserNotInBoard)
 
         users_list_from_cache = await cache.get(
@@ -703,24 +692,32 @@ class BoardController(BaseController[BoardConfig]):
         if users_list_from_cache:
             return json.loads(users_list_from_cache)
 
-        db_users_list = await db.get_users_list(board_valid_id)
-        users_list = [
-            UserWithRoleDTO(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                is_active=user.is_active,
-                first_name=user.first_name,
-                last_name=user.last_name,
-                avatar=user.avatar,
-                created_at=user.created_at,
-                role=role
-            ) for user, role in db_users_list
-        ]
+        db_users_list = await db.get_users_list(valid_board_id)
+        db_board_name = await db.get_board_name(valid_board_id)
+
+        users_list = UsersListDTO(
+            board=BoardPreviewtDTO(
+                id=valid_board_id,
+                name=db_board_name
+            ),
+            users=[
+                UserWithRoleDTO(
+                    id=user.id,
+                    username=user.username,
+                    email=user.email,
+                    is_active=user.is_active,
+                    first_name=user.first_name,
+                    last_name=user.last_name,
+                    avatar=user.avatar,
+                    created_at=user.created_at,
+                    role=role
+                ) for user, role in db_users_list
+            ]
+        )
 
         await cache.set(
             cache_keys.users_list.format(board_id),
-            json.dumps([user.model_dump() for user in users_list], default=str)
+            json.dumps(users_list.model_dump(), default=str)
         )
 
         return users_list

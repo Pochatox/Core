@@ -121,6 +121,7 @@ class TaskPreviewDTO(BaseDTO):
 
 
 class ColumnShortDTO(BaseDTO):
+    id: UUID
     name: str
     position: int
     wip: int
@@ -156,6 +157,16 @@ class BoardShortDTO(BaseDTO):
     description: Optional[str]
     created_at: datetime
     user_role: UserRole
+
+
+class BoardPreviewtDTO(BaseDTO):
+    id: UUID
+    name: str
+
+
+class UsersListDTO(BaseDTO):
+    board: BoardPreviewtDTO
+    users: list[UserWithRoleDTO]
 
 
 class CommentDTO(BaseDTO):

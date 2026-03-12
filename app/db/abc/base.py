@@ -6,7 +6,9 @@ from uuid import UUID
 import uuid6
 
 from app.db.abc.configs import BaseDBConfig
-from app.db.abc.models import BoardProtocol, UserProtocol, ColumnProtocol, CommentProtocol, LabelProtocol, RoleProtocol, TaskProtocol, TaskTransitionProtocol
+from app.db.abc.models import (BoardProtocol, ColumnProtocol, CommentProtocol,
+                               LabelProtocol, RoleProtocol, TaskProtocol,
+                               TaskTransitionProtocol, UserProtocol)
 from app.db.enums import TaskPriority, UserRole
 from app.types import Sentinel, UserId, Username
 
@@ -98,7 +100,9 @@ class BaseAsyncDB(ABC, Generic[DBConfig]):
     ) -> bool: ...
 
     @abstractmethod
-    async def is_user_in_board_by_task(self, user_id: UserId, task_id: UUID) -> bool: ...
+    async def is_user_in_board_by_task(
+        self, user_id: UserId, task_id: UUID
+    ) -> bool: ...
 
     @abstractmethod
     async def create_column(
@@ -180,18 +184,20 @@ class BaseAsyncDB(ABC, Generic[DBConfig]):
     ) -> bool: ...
 
     @abstractmethod
-    async def get_users_boards(self, user_id: UserId) -> list[tuple[BoardProtocol, UserRole]]: ...
+    async def get_users_boards(
+        self, user_id: UserId
+    ) -> list[tuple[BoardProtocol, UserRole]]: ...
 
     @abstractmethod
-    async def is_task_in_last_column(self, task_id: UUID) -> bool: ...
+    async def is_task_in_last_column(self, task_id: UUID, board_id: UUID) -> bool: ...
 
     @abstractmethod
     async def create_maintainer(self, board_id: UUID, user_id: UserId) -> None: ...
 
     @abstractmethod
-    async def get_user_username_by_id(self, username: str) -> UserId: ...
+    async def get_user_id_by_username(self, username: str) -> UserId: ...
 
     @abstractmethod
     async def get_users_list(
-            self, board_id: UUID
-        ) -> list[tuple[UserProtocol, UserRole]]: ...
+        self, board_id: UUID
+    ) -> list[tuple[UserProtocol, UserRole]]: ...

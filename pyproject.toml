@@ -76,6 +76,7 @@ ignore = [
     "WPS111",
     "WPS201",
     "WPS202",
+    "WPS204",
     "WPS210",
     "WPS211",
     "WPS214",
