@@ -3,7 +3,7 @@
 
 import json
 
-from litestar.handlers import get, post
+from litestar.handlers import delete, get, post
 from litestar.openapi.spec import Example
 
 from app import errors as error
@@ -18,8 +18,8 @@ from app.handlers.controller import BaseController
 from app.handlers.dto import (BoardDTO, BoardPreviewtDTO, ColumnDTO,
                               ColumnPreviewDTO, ColumnShortDTO, CreateBoardDTO,
                               CreateColumnDTO, CreateLabelDTO,
-                              CreateMaintainerDTO, LabelDTO, ShortTaskDTO,
-                              TaskPreviewDTO, TaskTransitionDTO,
+                              CreateMaintainerDTO, DeleteUserDTO, LabelDTO,
+                              ShortTaskDTO, TaskPreviewDTO, TaskTransitionDTO,
                               UserPreviewDTO, UserShortDTO, UsersListDTO,
                               UserWithRoleDTO)
 from app.tokens.payloads import AccessTokenPayload
@@ -425,6 +425,7 @@ class BoardController(BaseController[BoardConfig]):
         task_transitions = [
             TaskTransitionDTO(
                 task=TaskPreviewDTO(
+                    id=tt.task.id,
                     assignee=UserPreviewDTO(
                         id=tt.task.assignee.id,
                         username=tt.task.assignee.username,
@@ -445,6 +446,7 @@ class BoardController(BaseController[BoardConfig]):
                     avatar=tt.user.avatar,
                 ),
                 column=ColumnPreviewDTO(
+                    id=tt.column.id,
                     name=tt.column.name,
                     position=tt.column.position,
                 ),
@@ -721,3 +723,42 @@ class BoardController(BaseController[BoardConfig]):
         )
 
         return users_list
+
+    @delete('/user', responses={
+        401: litestar_response_spec(examples=[
+            Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),
+            Example('AccessTokenExpired', value=error.AccessTokenExpired()),
+            Example('AuthorizationHeaderMissing', value=error.AuthorizationHeaderMissing())  # noqa
+        ]),
+        403: litestar_response_spec(examples=[
+            Example('InsufficientRoleError', value=error.InsufficientRoleError())
+        ]),
+        422: litestar_response_spec(examples=[
+            Example('TaskNotExists', value=error.UserNotExists())
+        ])
+    }, tags=[tags.task_handler])
+    async def delete_user(
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, data: DeleteUserDTO
+    ) -> None:
+        if auth_client.sub == data.user_id:
+            raise litestar_raise(error.InsufficientRoleError)
+
+        user_role = await db.get_user_role(
+            user_id=auth_client.sub,
+            board_id=data.board_id
+        )
+        if user_role < self.config.min_delete_user_role:
+            raise litestar_raise(error.InsufficientRoleError)
+
+        try:
+            await db.delete_role(
+                user_id=data.user_id,
+                board_id=data.board_id
+            )
+        except UserNotFoundError as e:
+            raise litestar_raise(error.UserNotExists) from e
+
+        await cache.del_key(
+            cache_keys.users_list.format(data.board_id)
+        )

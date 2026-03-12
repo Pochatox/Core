@@ -184,6 +184,11 @@ class BaseAsyncDB(ABC, Generic[DBConfig]):
     ) -> bool: ...
 
     @abstractmethod
+    async def delete_role(
+        self, user_id: UserId, board_id: UUID
+    ) -> None: ...
+
+    @abstractmethod
     async def get_users_boards(
         self, user_id: UserId
     ) -> list[tuple[BoardProtocol, UserRole]]: ...

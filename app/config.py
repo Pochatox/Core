@@ -176,8 +176,9 @@ class UserConfig(BaseConfig):
 @dataclass(frozen=True)
 class BoardConfig(BaseConfig):
     min_create_column_role = UserRole.OWNER
+    min_delete_user_role: UserRole = UserRole.OWNER
     min_create_label_role = UserRole.MEMBER
-    min_task_transitions_role = UserRole.MAINTAINER
+    min_task_transitions_role = UserRole.MEMBER
     min_create_maintainer_role = UserRole.OWNER
     min_name_length = 3
     max_name_length = 24

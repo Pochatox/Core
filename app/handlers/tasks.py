@@ -12,10 +12,10 @@ from app.db.abc.base import str_to_id
 from app.db.exc import ColumnNotExists, TaskNotExists
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
-from app.handlers.dto import (ColumnPreviewDTO, CommentDTO, ConfirmTaskDTO,
-                              CreateCommentDTO, CreateTaskDTO, LabelDTO,
-                              MoveTaskDTO, TaskDTO, UserPreviewDTO,
-                              UserShortDTO, AssigneeTaskDTO)
+from app.handlers.dto import (AssigneeTaskDTO, ColumnPreviewDTO, CommentDTO,
+                              ConfirmTaskDTO, CreateCommentDTO, CreateTaskDTO,
+                              LabelDTO, MoveTaskDTO, TaskDTO, UserPreviewDTO,
+                              UserShortDTO)
 from app.tokens.payloads import AccessTokenPayload
 
 
@@ -66,6 +66,7 @@ class TaskController(BaseController[TaskConfig]):
             id=task.id,
             board_id=task.board_id,
             column=ColumnPreviewDTO(
+                id=task.column.id,
                 name=task.column.name,
                 position=task.column.position
             ) if task.column else None,
@@ -157,6 +158,7 @@ class TaskController(BaseController[TaskConfig]):
             id=db_task.id,
             board_id=db_task.board_id,
             column=ColumnPreviewDTO(
+                id=db_task.column.id,
                 name=db_task.column.name,
                 position=db_task.column.position
             ) if db_task.column else None,
@@ -220,28 +222,16 @@ class TaskController(BaseController[TaskConfig]):
     async def create_comment(
         self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
         cache_keys: CacheKeys, data: CreateCommentDTO
-    ) -> CommentDTO:
+    ) -> None:
         if not await db.is_user_in_board_by_task(auth_client.sub, data.task_id):
             raise litestar_raise(error.UserNotInBoard)
-        comment = await db.create_comment(
+        await db.create_comment(
             task_id=data.task_id,
             author_id=auth_client.sub,
             text=data.text
         )
-        author = await db.get_user_username_avatar(auth_client.sub)
-
         await cache.del_key(
             cache_keys.task.format(data.task_id)
-        )
-
-        return CommentDTO(
-            author=UserPreviewDTO(
-                id=auth_client.sub,
-                username=author.username,
-                avatar=author.avatar
-            ),
-            text=comment.text,
-            created_at=comment.created_at
         )
 
     @patch('/move', responses={

@@ -113,6 +113,7 @@ class ShortTaskDTO(BaseDTO):
 
 
 class TaskPreviewDTO(BaseDTO):
+    id: UUID
     assignee: UserPreviewDTO | None
     confirmed_by: UserPreviewDTO | None
     name: str
@@ -129,6 +130,7 @@ class ColumnShortDTO(BaseDTO):
 
 
 class ColumnPreviewDTO(BaseDTO):
+    id: UUID
     name: str
     position: int
 
@@ -248,3 +250,8 @@ class AssigneeTaskDTO(BaseDTO):
 
 class CreateMaintainerDTO(BaseDTO):
     maintainer_id: UserId
+
+
+class DeleteUserDTO(BaseDTO):
+    user_id: UserId
+    board_id: UUID

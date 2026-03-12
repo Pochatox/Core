@@ -523,6 +523,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                         User.avatar
                     ),
                     selectinload(Task.column).load_only(
+                        Column.id,
                         Column.name,
                         Column.position
                     ),
@@ -703,6 +704,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 .options(
                     load_only(TaskTransition.moved_at),
                     selectinload(TaskTransition.task).load_only(
+                        Task.id,
                         Task.name,
                         Task.priority,
                         Task.created_at,
@@ -724,6 +726,7 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                         User.avatar,
                     ),
                     selectinload(TaskTransition.column).load_only(
+                        Column.id,
                         Column.name,
                         Column.position,
                     ),
@@ -766,6 +769,19 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             )
             session.add(new_role)
         return new_role
+
+    async def delete_role(
+        self, user_id: UserId, board_id: UUID
+    ) -> None:
+        async with self._get_write_session() as session:
+            result = await session.execute(
+                delete(Role).where(
+                    Role.user_id == user_id,
+                    Role.board_id == board_id
+                )
+            )
+        if result.rowcount == 0:  # type: ignore
+            raise UserNotFoundError(f'User with id {user_id} is not found')
 
     async def is_move_to_column_allowed_by_task(
         self, task_id: UUID, column_position: int,
