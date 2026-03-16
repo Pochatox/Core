@@ -200,6 +200,8 @@ class TaskConfig(BaseConfig):
     max_description_length = 4096
 
 
+default_mail_lang = Language.ru
+
 EMAIL_REGISTRATION_SUBJECT = MappingProxyType({
     Language.en: 'Pochatox: Registration',
     Language.ru: 'Pochatox: Регистрация'
@@ -244,14 +246,14 @@ EMAIL_INVITE_SUBJECT = MappingProxyType({
 EMAIL_INVITE_BODY = MappingProxyType({
     Language.en: (
         'User {first_name} {last_name} (@{username}) invites you to the project '
-        '{board_name} (created at {board_created_at})'
-        + MAIL_URL + '/user/invite{token}\n'
+        '{board_name} (created at {board_created_at})\n'
+        + MAIL_URL + '/user/invite{token}/\n'
         'To accept the invitation, follow the link within 24 hours'
     ),
     Language.ru: (
         'Пользователь {first_name} {last_name} (@{username}) приглашает вас в проект'
-        '{board_name} (создан {board_created_at})'
-        + MAIL_URL + '/user/invite{token}\n'
+        '{board_name} (создан {board_created_at})\n'
+        + MAIL_URL + '/user/invite{token}/\n'
         'Для принятия приглашения перейдите по ссылке в течении 24 часов'
     )
 })

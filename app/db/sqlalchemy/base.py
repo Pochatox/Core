@@ -875,6 +875,14 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 raise UserNotFoundError(f'User with username {username} is not found')
             return result
 
+    async def get_user_username(self, user_id: UserId) -> UserId:
+        async with self._get_read_session() as session:
+            stmt = select(User.username).where(User.username == user_id)
+            result = (await session.execute(stmt)).scalar_one_or_none()
+            if not result:
+                raise UserNotFoundError(f'User with id {user_id} is not found')
+            return result
+
     async def get_users_list(
         self, board_id: UUID
     ) -> list[tuple[UserProtocol, UserRole]]:

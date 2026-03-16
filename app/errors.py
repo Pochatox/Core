@@ -289,6 +289,15 @@ class UserAlreadyMaintainer(BaseError):
     }
 
 
+class UserAlreadyInBoard(BaseError):
+    status_code: int = 409
+    detail: str = HTTPStatus(409).phrase
+    extra: dict = {
+        'error_code': 'other-8',
+        'message': 'The user is already in board'
+    }
+
+
 def litestar_raise(
     error_model: type[BaseError], add_to_extra: Mapping[str, Any] = Sentinel,
     headers: dict[str, str] = Sentinel

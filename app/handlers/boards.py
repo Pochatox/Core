@@ -11,8 +11,7 @@ from app import openapi_tags as tags
 from app.config import BoardConfig, Cache, CacheKeys, DataBase
 from app.db.abc.base import str_to_id
 from app.db.enums import UserRole
-from app.db.exc import (ColumnNotExists, TaskNotExists, UserAlreadyMaintainer,
-                        UserNotFoundError, UserNotInBoard)
+from app.db.exc import ColumnNotExists, TaskNotExists, UserNotFoundError
 from app.errors import litestar_raise, litestar_response_spec
 from app.handlers.controller import BaseController
 from app.handlers.dto import (BoardDTO, BoardPreviewtDTO, ColumnDTO,
@@ -647,18 +646,29 @@ class BoardController(BaseController[BoardConfig]):
             user_id=auth_client.sub,
             board_id=valid_board_id
         )
-        if user_role < self.config.min_create_maintainer_role:
+        if (
+            user_role < self.config.min_create_maintainer_role
+            or auth_client.sub == data.maintainer_id
+        ):
             raise litestar_raise(error.InsufficientRoleError)
 
         try:
-            await db.create_maintainer(
-                board_id=valid_board_id,
-                user_id=data.maintainer_id
+            expected_maintainer_role = await db.get_user_role(
+                user_id=auth_client.sub,
+                board_id=data.maintainer_id
             )
-        except UserNotInBoard as e:
+        except UserNotFoundError as e:
             raise litestar_raise(error.UserNotInBoard) from e
-        except UserAlreadyMaintainer as e:
-            raise litestar_raise(error.UserAlreadyMaintainer) from e
+
+        if expected_maintainer_role >= user_role:
+            raise litestar_raise(error.InsufficientRoleError)
+        if expected_maintainer_role >= UserRole.MAINTAINER:
+            raise litestar_raise(error.UserAlreadyMaintainer)
+
+        await db.create_maintainer(
+            board_id=valid_board_id,
+            user_id=data.maintainer_id
+        )
 
         await cache.del_key(
             cache_keys.users_list.format(board_id)
@@ -736,7 +746,7 @@ class BoardController(BaseController[BoardConfig]):
         422: litestar_response_spec(examples=[
             Example('TaskNotExists', value=error.UserNotExists())
         ])
-    }, tags=[tags.task_handler])
+    }, tags=[tags.board_handler])
     async def delete_user(
         self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
         cache_keys: CacheKeys, data: DeleteUserDTO

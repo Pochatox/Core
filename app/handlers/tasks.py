@@ -288,6 +288,10 @@ class TaskController(BaseController[TaskConfig]):
             cache_keys.board.format(board_id)
         )
 
+        await cache.del_key(
+            cache_keys.task_transitions.format(board_id)
+        )
+
     @patch('/confirm', responses={
         401: litestar_response_spec(examples=[
             Example('AccessTokenInvalid', value=error.AccessTokenInvalid()),

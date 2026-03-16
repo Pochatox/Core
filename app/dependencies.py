@@ -3,7 +3,7 @@
 from litestar.connection import Request
 
 from app import errors as error
-from app.config import Language
+from app.config import Language, default_mail_lang
 from app.errors import litestar_raise
 from app.tokens.base import (BaseToken, BaseTokenConfig, DecodeTokenError,
                              TokenExpiredError)
@@ -13,10 +13,9 @@ from app.tokens.payloads import AccessTokenPayload
 def get_language(request: Request) -> Language:
     lang = request.cookies.get('language', Language.en.value)
     try:
-        lang = Language(lang)
+        return Language(lang)
     except ValueError:
-        lang = Language.en
-    return lang
+        return default_mail_lang
 
 
 def auth_client(
