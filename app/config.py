@@ -247,13 +247,13 @@ EMAIL_INVITE_BODY = MappingProxyType({
     Language.en: (
         'User {first_name} {last_name} (@{username}) invites you to the project '
         '{board_name} (created at {board_created_at})\n'
-        + MAIL_URL + '/user/invite{token}/\n'
+        + MAIL_URL + '/user/invite/{token}/\n'
         'To accept the invitation, follow the link within 24 hours'
     ),
     Language.ru: (
         'Пользователь {first_name} {last_name} (@{username}) приглашает вас в проект'
         '{board_name} (создан {board_created_at})\n'
-        + MAIL_URL + '/user/invite{token}/\n'
+        + MAIL_URL + '/user/invite/{token}/\n'
         'Для принятия приглашения перейдите по ссылке в течении 24 часов'
     )
 })

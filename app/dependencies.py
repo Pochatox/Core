@@ -11,7 +11,7 @@ from app.tokens.payloads import AccessTokenPayload
 
 
 def get_language(request: Request) -> Language:
-    lang = request.cookies.get('language', Language.en.value)
+    lang = request.cookies.get('language', default_mail_lang)
     try:
         return Language(lang)
     except ValueError:

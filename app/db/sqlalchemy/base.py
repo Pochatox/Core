@@ -859,6 +859,9 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
 
     async def create_maintainer(self, board_id: UUID, user_id: UserId) -> None:
         async with self._get_write_session() as session:
+            await session.execute(
+                delete(Role).where(Role.user_id == user_id, Role.board_id == board_id)
+            )
             role = Role(
                 id=get_id(),
                 user_id=user_id,

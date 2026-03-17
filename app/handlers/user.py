@@ -378,6 +378,9 @@ class UserController(BaseController[UserConfig]):
         await cache.del_key(
             cache_keys.users_list.format(invite_token_payload.board)
         )
+        await cache.del_key(
+            cache_keys.boards.format(user_id)
+        )
 
     @get('/boards', responses={
         401: litestar_response_spec(examples=[

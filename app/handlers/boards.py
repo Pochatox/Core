@@ -36,7 +36,8 @@ class BoardController(BaseController[BoardConfig]):
         ])
     }, tags=[tags.board_handler])
     async def create_board(
-        self, auth_client: AccessTokenPayload, db: DataBase, data: CreateBoardDTO
+        self, auth_client: AccessTokenPayload, db: DataBase, cache: Cache,
+        cache_keys: CacheKeys, data: CreateBoardDTO
     ) -> BoardDTO:
         board = await db.create_board(
             owner_id=auth_client.sub,
@@ -44,6 +45,9 @@ class BoardController(BaseController[BoardConfig]):
             description=data.description
         )
         user = await db.get_short_user(board.owner_id)
+        await cache.del_key(
+            cache_keys.boards.format(auth_client.sub)
+        )
         return BoardDTO(
             id=board.id,
             owner=UserShortDTO(
@@ -654,8 +658,8 @@ class BoardController(BaseController[BoardConfig]):
 
         try:
             expected_maintainer_role = await db.get_user_role(
-                user_id=auth_client.sub,
-                board_id=data.maintainer_id
+                user_id=data.maintainer_id,
+                board_id=valid_board_id
             )
         except UserNotFoundError as e:
             raise litestar_raise(error.UserNotInBoard) from e
