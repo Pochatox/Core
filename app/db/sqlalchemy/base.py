@@ -108,14 +108,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
                 raise UserNotFoundError(f'User with id {user_id} is not found')
         return user
 
-    async def get_user_email_by_username(self, username: str) -> str:
-        async with self._get_read_session() as session:
-            stmt = select(User.email).where(User.username == username)
-            email = (await session.execute(stmt)).scalar_one_or_none()
-            if not email:
-                raise UserNotFoundError(f'User with username {username} is not found')
-        return email
-
     async def get_user_email(self, user_id: UserId) -> str:
         async with self._get_read_session() as session:
             stmt = select(User.email).where(User.id == user_id)
@@ -215,30 +207,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             session.add(new_board)
             session.add(role)
         return new_board
-
-    async def get_short_board(self, board_id: UUID) -> BoardProtocol:
-        async with self._get_read_session() as session:
-            stmt = select(Board).where(Board.id == board_id).options(
-                load_only(
-                    Board.id,
-                    Board.name,
-                    Board.description,
-                    Board.created_at
-                ),
-                selectinload(Board.owner).load_only(
-                    User.id,
-                    User.username,
-                    User.avatar,
-                    User.first_name,
-                    User.last_name
-                )
-            )
-            board = (
-                await session.execute(stmt)
-            ).scalars().unique().one_or_none()
-        if not board:
-            raise BoardNotFoundError(f'invalid id ({board_id})')
-        return board
 
     async def get_board_name(self, board_id: UUID) -> str:
         async with self._get_read_session() as session:
@@ -533,18 +501,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             task = (await session.execute(stmt)).scalars().unique().one_or_none()
         if not task:
             raise TaskNotExists(f'Task with id {task_id} is not found')
-        return task
-
-    async def get_user_username_avatar(self, user_id: UUID) -> UserProtocol:
-        async with self._get_read_session() as session:
-            stmt = select(
-                User.username,
-                User.avatar
-            ).where(User.id == user_id)
-            username_avatar = (await session.execute(stmt)).scalar_one_or_none()
-            if not username_avatar:
-                raise UserNotFoundError(f'User with id {user_id} is not found')
-            return username_avatar
 
     async def create_label(
         self, board_id: UUID, name: str, color: str
@@ -734,18 +690,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             )
         return result.scalars().all()
 
-    async def get_user_names(self, user_id: UserId) -> UserProtocol:
-        async with self._get_read_session() as session:
-            stmt = select(
-                User.first_name,
-                User.last_name,
-                User.username
-            ).where(User.id == user_id)
-            result = (await session.execute(stmt)).one_or_none()
-            if not result:
-                raise UserNotFoundError(f'User with id {user_id} is not found')
-            return result
-
     async def get_board_name_created_at(self, board_id: UUID) -> BoardProtocol:
         async with self._get_read_session() as session:
             stmt = select(
@@ -876,14 +820,6 @@ class AsyncSQLAlchemyDB(BaseAsyncDB[SQLAlchemyDBConfig]):
             result = (await session.execute(stmt)).scalar_one_or_none()
             if not result:
                 raise UserNotFoundError(f'User with username {username} is not found')
-            return result
-
-    async def get_user_username(self, user_id: UserId) -> UserId:
-        async with self._get_read_session() as session:
-            stmt = select(User.username).where(User.username == user_id)
-            result = (await session.execute(stmt)).scalar_one_or_none()
-            if not result:
-                raise UserNotFoundError(f'User with id {user_id} is not found')
             return result
 
     async def get_users_list(
