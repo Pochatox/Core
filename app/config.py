@@ -157,6 +157,8 @@ class AuthConfig(BaseConfig):
     email_max_length: int = 256
     password_min_length: int = 5
     password_max_length: int = 74
+    username_pattern: str = r'^[A-Za-z0-9_]+$'
+    password_pattern: str = r'^[A-Za-z0-9_]+$'
 
     registration_token_exp: timedelta = timedelta(minutes=5)
     access_token_exp: timedelta = timedelta(hours=8)

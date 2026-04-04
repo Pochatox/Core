@@ -18,16 +18,16 @@ class RegistrationDTO(BaseDTO):
         ...,
         min_length=AuthConfig.username_min_length,
         max_length=AuthConfig.username_max_length,
-        pattern=r'^[A-Za-z0-9_]+$',
-        description='Pattern: ^[A-Za-z0-9_]+$'
+        pattern=AuthConfig.username_pattern,
+        description=f'Pattern: {AuthConfig.username_pattern}'
     )
     email: str = Field(..., max_length=AuthConfig.email_max_length)
     password: str = Field(
         ...,
         min_length=AuthConfig.password_min_length,
         max_length=AuthConfig.password_max_length,
-        pattern=r'^[A-Za-z0-9_]+$',
-        description='Pattern: ^[A-Za-z0-9_]+$'
+        pattern=AuthConfig.password_pattern,
+        description=f'Pattern: {AuthConfig.password_pattern}'
     )
     first_name: str
     last_name: str
